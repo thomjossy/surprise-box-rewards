@@ -90,3 +90,11 @@
                 0 0 1px hsl(var(--foreground) / 0.15);
   }
 }
+
+/* Hide Google Translate toolbar */
+.goog-te-banner-frame, .skiptranslate {
+  display: none !important;
+}
+body {
+  top: 0 !important;
+}

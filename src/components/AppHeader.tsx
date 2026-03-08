@@ -1,6 +1,7 @@
 import { Gift, User } from "lucide-react";
 import { formatCurrency } from "@/lib/gameStore";
 import { useNavigate, useLocation } from "react-router-dom";
+import LanguageSelector from "@/components/LanguageSelector";
 
 interface AppHeaderProps {
   winnerName?: string;
@@ -22,7 +23,8 @@ export default function AppHeader({ winnerName, balanceWon, showDashboardLink }:
           <span className="font-display text-lg font-bold text-foreground">thethankyou-rewards</span>
         </button>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <LanguageSelector />
           {winnerName && balanceWon !== undefined && (
             <div className="hidden items-center gap-3 text-sm sm:flex">
               <span className="text-muted-foreground">{winnerName}</span>
