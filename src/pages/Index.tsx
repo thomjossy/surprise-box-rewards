@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Gift, ArrowRight, Sparkles } from "lucide-react";
+import { Gift, ArrowRight, Sparkles, LogIn } from "lucide-react";
 import { validateCode, useCode, setCurrentSession, getDeviceId, getCurrentSession, getNotification } from "@/lib/gameStore";
 import NotificationModal from "@/components/NotificationModal";
 import AppHeader from "@/components/AppHeader";
@@ -124,9 +124,14 @@ export default function Index() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            All rewards are withdrawable
-          </p>
+          <div className="mt-6 text-center space-y-2">
+            <p className="text-xs text-muted-foreground">
+              All rewards are withdrawable
+            </p>
+            <Link to="/login" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+              <LogIn className="h-3.5 w-3.5" /> Already played? Log in to view your balance
+            </Link>
+          </div>
         </motion.div>
       </main>
 
