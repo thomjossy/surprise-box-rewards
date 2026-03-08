@@ -81,7 +81,7 @@ function getDefaultBoxes(): DonationBox[] {
   return Array.from({ length: 12 }, (_, i) => ({
     id: i + 1,
     reward: `Reward ${i + 1}`,
-    amount: [5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000, 7500, 12500, 30000, 45000][i],
+    amount: [50, 100, 150, 200, 250, 500, 750, 1000, 75, 125, 300, 450][i],
     isOpened: false,
   }));
 }
@@ -212,5 +212,5 @@ export function setUserData(data: any): void {
 }
 
 export function formatCurrency(amount: number): string {
-  return `₦${amount.toLocaleString()}`;
+  return `$${amount.toLocaleString()}`;
 }
