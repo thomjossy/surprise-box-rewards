@@ -125,7 +125,7 @@ export default function Index() {
           </form>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            Each code can only be used once per device
+            All rewards are withdrawable
           </p>
         </motion.div>
       </main>
