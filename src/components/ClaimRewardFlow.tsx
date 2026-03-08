@@ -3,8 +3,42 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { User, ShieldCheck, MessageCircle, ArrowRight, ArrowLeft, Upload, FileText, Image, X } from "lucide-react";
+
+const countryCodes = [
+  { code: "+1", country: "US", flag: "🇺🇸" },
+  { code: "+44", country: "UK", flag: "🇬🇧" },
+  { code: "+234", country: "NG", flag: "🇳🇬" },
+  { code: "+91", country: "IN", flag: "🇮🇳" },
+  { code: "+61", country: "AU", flag: "🇦🇺" },
+  { code: "+49", country: "DE", flag: "🇩🇪" },
+  { code: "+33", country: "FR", flag: "🇫🇷" },
+  { code: "+86", country: "CN", flag: "🇨🇳" },
+  { code: "+81", country: "JP", flag: "🇯🇵" },
+  { code: "+55", country: "BR", flag: "🇧🇷" },
+  { code: "+27", country: "ZA", flag: "🇿🇦" },
+  { code: "+254", country: "KE", flag: "🇰🇪" },
+  { code: "+971", country: "AE", flag: "🇦🇪" },
+  { code: "+65", country: "SG", flag: "🇸🇬" },
+  { code: "+60", country: "MY", flag: "🇲🇾" },
+  { code: "+63", country: "PH", flag: "🇵🇭" },
+  { code: "+82", country: "KR", flag: "🇰🇷" },
+  { code: "+39", country: "IT", flag: "🇮🇹" },
+  { code: "+34", country: "ES", flag: "🇪🇸" },
+  { code: "+7", country: "RU", flag: "🇷🇺" },
+  { code: "+52", country: "MX", flag: "🇲🇽" },
+  { code: "+62", country: "ID", flag: "🇮🇩" },
+  { code: "+90", country: "TR", flag: "🇹🇷" },
+  { code: "+966", country: "SA", flag: "🇸🇦" },
+  { code: "+20", country: "EG", flag: "🇪🇬" },
+  { code: "+233", country: "GH", flag: "🇬🇭" },
+  { code: "+255", country: "TZ", flag: "🇹🇿" },
+  { code: "+256", country: "UG", flag: "🇺🇬" },
+  { code: "+251", country: "ET", flag: "🇪🇹" },
+  { code: "+237", country: "CM", flag: "🇨🇲" },
+];
 
 interface ClaimRewardFlowProps {
   open: boolean;
@@ -28,7 +62,7 @@ interface UploadedFile {
 export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewardFlowProps) {
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({
-    fullName: '', email: '', phone: '', password: '',
+    fullName: '', email: '', countryCode: '+1', phone: '', password: '',
     address: '',
   });
   const [idFile, setIdFile] = useState<UploadedFile | null>(null);
@@ -165,7 +199,24 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
               <>
                 <div><Label>Full Name</Label><Input value={formData.fullName} onChange={e => updateField('fullName', e.target.value)} placeholder="John Doe" /></div>
                 <div><Label>Email</Label><Input type="email" value={formData.email} onChange={e => updateField('email', e.target.value)} placeholder="john@example.com" /></div>
-                <div><Label>Phone Number</Label><Input value={formData.phone} onChange={e => updateField('phone', e.target.value)} placeholder="+1..." /></div>
+                <div>
+                  <Label>Phone Number</Label>
+                  <div className="mt-1 flex gap-2">
+                    <Select value={formData.countryCode} onValueChange={v => updateField('countryCode', v)}>
+                      <SelectTrigger className="w-[120px] shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {countryCodes.map(c => (
+                          <SelectItem key={c.code + c.country} value={c.code}>
+                            {c.flag} {c.code}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input value={formData.phone} onChange={e => updateField('phone', e.target.value)} placeholder="Phone number" className="flex-1" />
+                  </div>
+                </div>
                 <div><Label>Password</Label><Input type="password" value={formData.password} onChange={e => updateField('password', e.target.value)} placeholder="Create a password" /></div>
               </>
             )}
