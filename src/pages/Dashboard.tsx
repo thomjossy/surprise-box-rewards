@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { getCurrentSession, formatCurrency } from "@/lib/gameStore";
+import { getCurrentSession, formatCurrency, logoutUser, registerUser } from "@/lib/gameStore";
 import { Gift, Wallet, Box, ShieldCheck, MessageCircle, LogOut } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import ClaimRewardFlow from "@/components/ClaimRewardFlow";
@@ -101,11 +101,12 @@ export default function Dashboard() {
             variant="ghost"
             className="w-full gap-2 text-muted-foreground"
             onClick={() => {
+              logoutUser();
               localStorage.removeItem('tyr_current_session');
               navigate('/');
             }}
           >
-            <LogOut className="h-4 w-4" /> Exit
+            <LogOut className="h-4 w-4" /> Log Out
           </Button>
         </div>
       </main>
@@ -118,7 +119,7 @@ export default function Dashboard() {
             ...session,
             name: formData.fullName,
             email: formData.email,
-            phone: formData.phone,
+            phone: `${formData.countryCode}${formData.phone}`,
             registrationComplete: true,
             bankLinked: false,
             kycComplete: true,
@@ -126,6 +127,25 @@ export default function Dashboard() {
           };
           setCurrentSession(updated);
           setSession(updated);
+
+          // Register the user so they can log in later
+          registerUser({
+            email: formData.email,
+            password: formData.password,
+            fullName: formData.fullName,
+            phone: formData.phone,
+            countryCode: formData.countryCode,
+            participantCode: session.code,
+            deviceId: session.deviceId,
+            boxSelected: session.boxSelected,
+            rewardWon: session.rewardWon,
+            amountWon: session.amountWon,
+            registrationComplete: true,
+            kycComplete: true,
+            withdrawalStatus: 'pending',
+            dateRegistered: new Date().toISOString(),
+          });
+
           setClaimOpen(false);
         }}
       />
