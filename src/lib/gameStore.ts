@@ -38,6 +38,23 @@ export interface NotificationConfig {
   title: string;
 }
 
+export interface RegisteredUser {
+  email: string;
+  password: string;
+  fullName: string;
+  phone: string;
+  countryCode: string;
+  participantCode: string;
+  deviceId: string;
+  boxSelected?: number;
+  rewardWon?: string;
+  amountWon?: number;
+  registrationComplete: boolean;
+  kycComplete: boolean;
+  withdrawalStatus: 'pending' | 'approved' | 'rejected' | 'none';
+  dateRegistered: string;
+}
+
 const STORAGE_KEYS = {
   DEVICE_ID: 'tyr_device_id',
   USED_CODES: 'tyr_used_codes',
@@ -47,6 +64,8 @@ const STORAGE_KEYS = {
   PARTICIPANTS: 'tyr_participants',
   NOTIFICATION: 'tyr_notification',
   USER_DATA: 'tyr_user_data',
+  REGISTERED_USERS: 'tyr_registered_users',
+  LOGGED_IN_USER: 'tyr_logged_in_user',
 };
 
 // Generate a device fingerprint
@@ -213,4 +232,40 @@ export function setUserData(data: any): void {
 
 export function formatCurrency(amount: number): string {
   return `$${amount.toLocaleString()}`;
+}
+
+// Registered users management
+export function getRegisteredUsers(): RegisteredUser[] {
+  const stored = localStorage.getItem(STORAGE_KEYS.REGISTERED_USERS);
+  return stored ? JSON.parse(stored) : [];
+}
+
+export function registerUser(user: RegisteredUser): void {
+  const users = getRegisteredUsers();
+  // Update if exists, otherwise add
+  const idx = users.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
+  if (idx !== -1) {
+    users[idx] = user;
+  } else {
+    users.push(user);
+  }
+  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(users));
+}
+
+export function loginUser(email: string, password: string): { success: boolean; user?: RegisteredUser; message: string } {
+  const users = getRegisteredUsers();
+  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (!user) return { success: false, message: 'No account found with this email.' };
+  if (user.password !== password) return { success: false, message: 'Incorrect password.' };
+  localStorage.setItem(STORAGE_KEYS.LOGGED_IN_USER, JSON.stringify(user));
+  return { success: true, user, message: 'Login successful!' };
+}
+
+export function getLoggedInUser(): RegisteredUser | null {
+  const stored = localStorage.getItem(STORAGE_KEYS.LOGGED_IN_USER);
+  return stored ? JSON.parse(stored) : null;
+}
+
+export function logoutUser(): void {
+  localStorage.removeItem(STORAGE_KEYS.LOGGED_IN_USER);
 }
