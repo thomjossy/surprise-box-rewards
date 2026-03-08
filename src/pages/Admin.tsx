@@ -210,6 +210,17 @@ export default function Admin() {
                         KYC: {p.kycComplete ? '✓' : '✗'}
                       </span>
                     </div>
+                    {p.registrationComplete && (
+                      <div className="mt-2 rounded-md bg-secondary/50 p-2 text-xs text-muted-foreground">
+                        <div className="grid grid-cols-2 gap-1">
+                          <span>Email: <span className="text-foreground">{p.email || '—'}</span></span>
+                          <span>Phone: <span className="text-foreground">{p.phone || '—'}</span></span>
+                        </div>
+                        <div className="mt-1">
+                          <span>Date: <span className="text-foreground">{new Date(p.dateUsed).toLocaleDateString()}</span></span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

