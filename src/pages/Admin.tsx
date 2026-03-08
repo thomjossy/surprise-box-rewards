@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import AppHeader from "@/components/AppHeader";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Admin() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [codes, setCodesState] = useState<ParticipationCode[]>([]);
   const [boxes, setBoxesState] = useState<DonationBox[]>([]);
@@ -27,11 +29,16 @@ export default function Admin() {
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
+    const isAdmin = sessionStorage.getItem("tyr_admin_auth");
+    if (!isAdmin) {
+      navigate("/admin-login");
+      return;
+    }
     setCodesState(getCodes());
     setBoxesState(getBoxes());
     setParticipantsState(getParticipants());
     setNotifState(getNotification());
-  }, []);
+  }, [navigate]);
 
   const addCode = () => {
     if (!newCode.trim()) return;
