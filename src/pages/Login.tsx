@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { LogIn, ArrowRight, Gift } from "lucide-react";
 import { loginUser, getLoggedInUser, getCurrentSession, setCurrentSession } from "@/lib/gameStore";
@@ -122,8 +123,7 @@ export default function Login() {
               </div>
               <div>
                 <Label>Password</Label>
-                <Input
-                  type="password"
+                <PasswordInput
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError(""); }}
                   placeholder="Enter your password"
