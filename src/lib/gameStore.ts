@@ -1,4 +1,5 @@
-// Game state management using localStorage for device fingerprinting
+// Game state management using Supabase for real-time synchronization
+import { supabase } from "@/integrations/supabase/client";
 
 export interface DonationBox {
   id: number;
@@ -14,6 +15,8 @@ export interface Participant {
   name?: string;
   email?: string;
   phone?: string;
+  countryCode?: string;
+  address?: string;
   boxSelected?: number;
   rewardWon?: string;
   amountWon?: number;
@@ -22,13 +25,12 @@ export interface Participant {
   kycComplete: boolean;
   withdrawalStatus: 'pending' | 'approved' | 'rejected' | 'none';
   dateUsed: string;
+  userId?: string;
 }
 
 export interface ParticipationCode {
   code: string;
   isActive: boolean;
-  usedBy: string[];
-  devicesUsed: string[];
   dateCreated: string;
 }
 
@@ -57,14 +59,6 @@ export interface RegisteredUser {
 
 const STORAGE_KEYS = {
   DEVICE_ID: 'tyr_device_id',
-  USED_CODES: 'tyr_used_codes',
-  CURRENT_SESSION: 'tyr_current_session',
-  BOXES: 'tyr_boxes',
-  CODES: 'tyr_codes',
-  PARTICIPANTS: 'tyr_participants',
-  NOTIFICATION: 'tyr_notification',
-  USER_DATA: 'tyr_user_data',
-  REGISTERED_USERS: 'tyr_registered_users',
   LOGGED_IN_USER: 'tyr_logged_in_user',
 };
 
@@ -79,193 +73,385 @@ export function getDeviceId(): string {
 }
 
 // Check if device has used a code
-export function hasDeviceUsedCode(code: string): boolean {
-  const usedCodes: Record<string, boolean> = JSON.parse(
-    localStorage.getItem(STORAGE_KEYS.USED_CODES) || '{}'
-  );
-  return !!usedCodes[code];
+export async function hasDeviceUsedCode(code: string): Promise<boolean> {
+  const deviceId = getDeviceId();
+  const { data, error } = await supabase
+    .from('code_usage')
+    .select('id')
+    .eq('code', code.toUpperCase())
+    .eq('device_id', deviceId)
+    .single();
+  
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error checking code usage:', error);
+    return false;
+  }
+  
+  return !!data;
 }
 
 // Mark code as used on this device
-export function markCodeUsedOnDevice(code: string): void {
-  const usedCodes: Record<string, boolean> = JSON.parse(
-    localStorage.getItem(STORAGE_KEYS.USED_CODES) || '{}'
-  );
-  usedCodes[code] = true;
-  localStorage.setItem(STORAGE_KEYS.USED_CODES, JSON.stringify(usedCodes));
+export async function markCodeUsedOnDevice(code: string, userId?: string): Promise<void> {
+  const deviceId = getDeviceId();
+  const { error } = await supabase
+    .from('code_usage')
+    .insert([
+      {
+        code: code.toUpperCase(),
+        device_id: deviceId,
+        user_id: userId || null,
+      }
+    ]);
+  
+  if (error) {
+    console.error('Error marking code as used:', error);
+  }
 }
 
-// Default donation boxes
-function getDefaultBoxes(): DonationBox[] {
-  return Array.from({ length: 12 }, (_, i) => ({
-    id: i + 1,
-    reward: `Reward ${i + 1}`,
-    amount: [50, 100, 150, 200, 250, 500, 750, 1000, 75, 125, 300, 450][i],
-    isOpened: false,
+// Get donation boxes from Supabase
+export async function getBoxes(): Promise<DonationBox[]> {
+  const { data, error } = await supabase
+    .from('reward_boxes')
+    .select('*')
+    .order('id');
+  
+  if (error) {
+    console.error('Error fetching boxes:', error);
+    return [];
+  }
+  
+  return data.map(box => ({
+    id: box.id,
+    reward: box.reward,
+    amount: box.amount,
+    isOpened: box.is_opened,
+    openedBy: box.opened_by,
   }));
 }
 
-// Default participation codes
-function getDefaultCodes(): ParticipationCode[] {
-  return [
-    { code: 'THANKYOU2024', isActive: true, usedBy: [], devicesUsed: [], dateCreated: new Date().toISOString() },
-    { code: 'REWARD100', isActive: true, usedBy: [], devicesUsed: [], dateCreated: new Date().toISOString() },
-    { code: 'GIFT500', isActive: true, usedBy: [], devicesUsed: [], dateCreated: new Date().toISOString() },
-    { code: 'BONUS2024', isActive: true, usedBy: [], devicesUsed: [], dateCreated: new Date().toISOString() },
-    { code: 'WIN50K', isActive: true, usedBy: [], devicesUsed: [], dateCreated: new Date().toISOString() },
-  ];
-}
-
-export function getBoxes(): DonationBox[] {
-  const stored = localStorage.getItem(STORAGE_KEYS.BOXES);
-  if (!stored) {
-    const boxes = getDefaultBoxes();
-    localStorage.setItem(STORAGE_KEYS.BOXES, JSON.stringify(boxes));
-    return boxes;
-  }
-  return JSON.parse(stored);
-}
-
-export function updateBox(boxId: number, updates: Partial<DonationBox>): void {
-  const boxes = getBoxes();
-  const idx = boxes.findIndex(b => b.id === boxId);
-  if (idx !== -1) {
-    boxes[idx] = { ...boxes[idx], ...updates };
-    localStorage.setItem(STORAGE_KEYS.BOXES, JSON.stringify(boxes));
+// Update a specific box
+export async function updateBox(boxId: number, updates: Partial<DonationBox>): Promise<void> {
+  const dbUpdates: any = {};
+  if (updates.isOpened !== undefined) dbUpdates.is_opened = updates.isOpened;
+  if (updates.openedBy !== undefined) dbUpdates.opened_by = updates.openedBy;
+  if (updates.reward !== undefined) dbUpdates.reward = updates.reward;
+  if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
+  
+  const { error } = await supabase
+    .from('reward_boxes')
+    .update(dbUpdates)
+    .eq('id', boxId);
+  
+  if (error) {
+    console.error('Error updating box:', error);
   }
 }
 
-export function setBoxes(boxes: DonationBox[]): void {
-  localStorage.setItem(STORAGE_KEYS.BOXES, JSON.stringify(boxes));
-}
-
-export function getCodes(): ParticipationCode[] {
-  const stored = localStorage.getItem(STORAGE_KEYS.CODES);
-  if (!stored) {
-    const codes = getDefaultCodes();
-    localStorage.setItem(STORAGE_KEYS.CODES, JSON.stringify(codes));
-    return codes;
+// Set all boxes (admin use)
+export async function setBoxes(boxes: DonationBox[]): Promise<void> {
+  for (const box of boxes) {
+    await updateBox(box.id, box);
   }
-  return JSON.parse(stored);
 }
 
-export function setCodes(codes: ParticipationCode[]): void {
-  localStorage.setItem(STORAGE_KEYS.CODES, JSON.stringify(codes));
+// Get participation codes from Supabase
+export async function getCodes(): Promise<ParticipationCode[]> {
+  const { data, error } = await supabase
+    .from('participation_codes')
+    .select('*')
+    .order('date_created', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching codes:', error);
+    return [];
+  }
+  
+  return data.map(code => ({
+    code: code.code,
+    isActive: code.is_active,
+    dateCreated: code.date_created,
+  }));
 }
 
-export function validateCode(code: string): { valid: boolean; message: string } {
-  const codes = getCodes();
+// Set participation codes (admin use)
+export async function setCodes(codes: ParticipationCode[]): Promise<void> {
+  // Delete all existing codes
+  await supabase.from('participation_codes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  
+  // Insert new codes
+  const { error } = await supabase
+    .from('participation_codes')
+    .insert(codes.map(code => ({
+      code: code.code,
+      is_active: code.isActive,
+      date_created: code.dateCreated,
+    })));
+  
+  if (error) {
+    console.error('Error setting codes:', error);
+  }
+}
+
+// Validate participation code
+export async function validateCode(code: string): Promise<{ valid: boolean; message: string }> {
+  const codes = await getCodes();
   const found = codes.find(c => c.code.toUpperCase() === code.toUpperCase());
   
   if (!found) return { valid: false, message: 'Invalid participation code.' };
   if (!found.isActive) return { valid: false, message: 'This code has been disabled.' };
   
-  const deviceId = getDeviceId();
-  if (found.devicesUsed.includes(deviceId)) {
+  const deviceUsed = await hasDeviceUsedCode(code);
+  if (deviceUsed) {
     return { valid: false, message: 'This code has already been used on this device.' };
   }
   
   return { valid: true, message: 'Code accepted!' };
 }
 
-export function useCode(code: string): void {
-  const codes = getCodes();
-  const deviceId = getDeviceId();
-  const idx = codes.findIndex(c => c.code.toUpperCase() === code.toUpperCase());
-  if (idx !== -1) {
-    codes[idx].devicesUsed.push(deviceId);
-    setCodes(codes);
-  }
-  markCodeUsedOnDevice(code.toUpperCase());
+// Use a participation code
+export async function useCode(code: string, userId?: string): Promise<void> {
+  await markCodeUsedOnDevice(code.toUpperCase(), userId);
 }
 
+// Get current session participant from local storage (for compatibility)
 export function getCurrentSession(): Participant | null {
-  const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION);
-  return stored ? JSON.parse(stored) : null;
+  const deviceId = getDeviceId();
+  // For now, return null as we'll handle this through Supabase queries
+  return null;
 }
 
+// Set current session (for compatibility, but we'll use Supabase)
 export function setCurrentSession(session: Participant): void {
-  localStorage.setItem(STORAGE_KEYS.CURRENT_SESSION, JSON.stringify(session));
+  // This will be handled through Supabase operations
+  console.log('Session management moved to Supabase');
 }
 
-export function getParticipants(): Participant[] {
-  const stored = localStorage.getItem(STORAGE_KEYS.PARTICIPANTS);
-  return stored ? JSON.parse(stored) : [];
+// Get participants from Supabase
+export async function getParticipants(): Promise<Participant[]> {
+  const { data, error } = await supabase
+    .from('participants')
+    .select('*')
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching participants:', error);
+    return [];
+  }
+  
+  return data.map(p => ({
+    code: p.code,
+    deviceId: p.device_id,
+    name: p.name,
+    email: p.email,
+    phone: p.phone,
+    countryCode: p.country_code,
+    address: p.address,
+    boxSelected: p.box_selected,
+    rewardWon: p.reward_won,
+    amountWon: p.amount_won || 0,
+    registrationComplete: p.registration_complete,
+    bankLinked: p.bank_linked,
+    kycComplete: p.kyc_complete,
+    withdrawalStatus: p.withdrawal_status as any,
+    dateUsed: p.date_used,
+    userId: p.user_id,
+  }));
 }
 
-export function addParticipant(participant: Participant): void {
-  const participants = getParticipants();
-  participants.push(participant);
-  localStorage.setItem(STORAGE_KEYS.PARTICIPANTS, JSON.stringify(participants));
-}
-
-export function updateParticipant(code: string, deviceId: string, updates: Partial<Participant>): void {
-  const participants = getParticipants();
-  const idx = participants.findIndex(p => p.code === code && p.deviceId === deviceId);
-  if (idx !== -1) {
-    participants[idx] = { ...participants[idx], ...updates };
-    localStorage.setItem(STORAGE_KEYS.PARTICIPANTS, JSON.stringify(participants));
+// Add participant to Supabase
+export async function addParticipant(participant: Participant): Promise<void> {
+  const { error } = await supabase
+    .from('participants')
+    .insert([{
+      code: participant.code,
+      device_id: participant.deviceId,
+      name: participant.name,
+      email: participant.email,
+      phone: participant.phone,
+      country_code: participant.countryCode,
+      address: participant.address,
+      box_selected: participant.boxSelected,
+      reward_won: participant.rewardWon,
+      amount_won: participant.amountWon || 0,
+      registration_complete: participant.registrationComplete,
+      bank_linked: participant.bankLinked,
+      kyc_complete: participant.kycComplete,
+      withdrawal_status: participant.withdrawalStatus,
+      date_used: participant.dateUsed,
+      user_id: participant.userId || null,
+    }]);
+  
+  if (error) {
+    console.error('Error adding participant:', error);
   }
 }
 
-export function getNotification(): NotificationConfig {
-  const stored = localStorage.getItem(STORAGE_KEYS.NOTIFICATION);
-  return stored ? JSON.parse(stored) : {
-    enabled: true,
-    title: 'Welcome to TheThankYou Rewards!',
-    message: 'Enter your participation code to reveal your hidden reward. Each box contains a special prize just for you!',
+// Update participant in Supabase
+export async function updateParticipant(code: string, deviceId: string, updates: Partial<Participant>): Promise<void> {
+  const dbUpdates: any = {};
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.email !== undefined) dbUpdates.email = updates.email;
+  if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+  if (updates.countryCode !== undefined) dbUpdates.country_code = updates.countryCode;
+  if (updates.address !== undefined) dbUpdates.address = updates.address;
+  if (updates.boxSelected !== undefined) dbUpdates.box_selected = updates.boxSelected;
+  if (updates.rewardWon !== undefined) dbUpdates.reward_won = updates.rewardWon;
+  if (updates.amountWon !== undefined) dbUpdates.amount_won = updates.amountWon;
+  if (updates.registrationComplete !== undefined) dbUpdates.registration_complete = updates.registrationComplete;
+  if (updates.bankLinked !== undefined) dbUpdates.bank_linked = updates.bankLinked;
+  if (updates.kycComplete !== undefined) dbUpdates.kyc_complete = updates.kycComplete;
+  if (updates.withdrawalStatus !== undefined) dbUpdates.withdrawal_status = updates.withdrawalStatus;
+  
+  const { error } = await supabase
+    .from('participants')
+    .update(dbUpdates)
+    .eq('code', code)
+    .eq('device_id', deviceId);
+  
+  if (error) {
+    console.error('Error updating participant:', error);
+  }
+}
+
+// Get notification config from Supabase
+export async function getNotification(): Promise<NotificationConfig> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('enabled', true)
+    .single();
+  
+  if (error || !data) {
+    return {
+      enabled: true,
+      title: 'Welcome to TheThankYou Rewards!',
+      message: 'Enter your participation code to reveal your hidden reward. Each box contains a special prize just for you!',
+    };
+  }
+  
+  return {
+    enabled: data.enabled,
+    title: data.title,
+    message: data.message,
   };
 }
 
-export function setNotification(config: NotificationConfig): void {
-  localStorage.setItem(STORAGE_KEYS.NOTIFICATION, JSON.stringify(config));
+// Set notification config in Supabase
+export async function setNotification(config: NotificationConfig): Promise<void> {
+  // Delete existing notification and insert new one
+  await supabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  
+  const { error } = await supabase
+    .from('notifications')
+    .insert([{
+      enabled: config.enabled,
+      title: config.title,
+      message: config.message,
+    }]);
+  
+  if (error) {
+    console.error('Error setting notification:', error);
+  }
 }
 
+// Legacy localStorage functions for compatibility
 export function getUserData() {
-  const stored = localStorage.getItem(STORAGE_KEYS.USER_DATA);
-  return stored ? JSON.parse(stored) : null;
+  return null; // Now handled through Supabase auth
 }
 
 export function setUserData(data: any): void {
-  localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(data));
+  console.log('User data management moved to Supabase');
 }
 
 export function formatCurrency(amount: number): string {
   return `$${amount.toLocaleString()}`;
 }
 
-// Registered users management
-export function getRegisteredUsers(): RegisteredUser[] {
-  const stored = localStorage.getItem(STORAGE_KEYS.REGISTERED_USERS);
-  return stored ? JSON.parse(stored) : [];
-}
-
-export function registerUser(user: RegisteredUser): void {
-  const users = getRegisteredUsers();
-  // Update if exists, otherwise add
-  const idx = users.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
-  if (idx !== -1) {
-    users[idx] = user;
-  } else {
-    users.push(user);
+// Auth functions using Supabase
+export async function registerUser(user: RegisteredUser): Promise<void> {
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email: user.email,
+    password: user.password,
+  });
+  
+  if (authError) {
+    console.error('Error registering user:', authError);
+    throw authError;
   }
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(users));
+  
+  // Add participant record
+  if (authData.user) {
+    await addParticipant({
+      code: user.participantCode,
+      deviceId: user.deviceId,
+      name: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      countryCode: user.countryCode,
+      boxSelected: user.boxSelected,
+      rewardWon: user.rewardWon,
+      amountWon: user.amountWon || 0,
+      registrationComplete: user.registrationComplete,
+      bankLinked: false,
+      kycComplete: user.kycComplete,
+      withdrawalStatus: user.withdrawalStatus,
+      dateUsed: user.dateRegistered,
+      userId: authData.user.id,
+    });
+  }
 }
 
-export function loginUser(email: string, password: string): { success: boolean; user?: RegisteredUser; message: string } {
-  const users = getRegisteredUsers();
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (!user) return { success: false, message: 'No account found with this email.' };
-  if (user.password !== password) return { success: false, message: 'Incorrect password.' };
-  localStorage.setItem(STORAGE_KEYS.LOGGED_IN_USER, JSON.stringify(user));
-  return { success: true, user, message: 'Login successful!' };
+export async function loginUser(email: string, password: string): Promise<{ success: boolean; user?: any; message: string }> {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  
+  if (error) {
+    return { success: false, message: error.message };
+  }
+  
+  return { success: true, user: data.user, message: 'Login successful!' };
 }
 
-export function getLoggedInUser(): RegisteredUser | null {
-  const stored = localStorage.getItem(STORAGE_KEYS.LOGGED_IN_USER);
-  return stored ? JSON.parse(stored) : null;
+export function getLoggedInUser(): any {
+  return supabase.auth.getUser();
 }
 
-export function logoutUser(): void {
+export async function logoutUser(): Promise<void> {
+  await supabase.auth.signOut();
   localStorage.removeItem(STORAGE_KEYS.LOGGED_IN_USER);
+}
+
+// Subscribe to real-time updates for boxes
+export function subscribeToBoxes(callback: (boxes: DonationBox[]) => void) {
+  return supabase
+    .channel('reward_boxes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reward_boxes' }, async () => {
+      const boxes = await getBoxes();
+      callback(boxes);
+    })
+    .subscribe();
+}
+
+// Subscribe to real-time updates for codes
+export function subscribeToCodes(callback: (codes: ParticipationCode[]) => void) {
+  return supabase
+    .channel('participation_codes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'participation_codes' }, async () => {
+      const codes = await getCodes();
+      callback(codes);
+    })
+    .subscribe();
+}
+
+// Subscribe to real-time updates for notifications
+export function subscribeToNotifications(callback: (notification: NotificationConfig) => void) {
+  return supabase
+    .channel('notifications')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, async () => {
+      const notification = await getNotification();
+      callback(notification);
+    })
+    .subscribe();
 }

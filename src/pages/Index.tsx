@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Gift, ArrowRight, Sparkles, LogIn } from "lucide-react";
-import { validateCode, useCode, setCurrentSession, getDeviceId, getCurrentSession, getNotification } from "@/lib/gameStore";
+import { validateCode, useCode, setCurrentSession, getDeviceId, getCurrentSession, getNotification, type NotificationConfig } from "@/lib/gameStore";
 import NotificationModal from "@/components/NotificationModal";
 import AppHeader from "@/components/AppHeader";
 
@@ -24,13 +24,16 @@ export default function Index() {
     }
 
     // Show notification
-    const notif = getNotification();
-    if (notif.enabled) {
-      setNotifOpen(true);
-    }
+    const loadNotification = async () => {
+      const notif = await getNotification();
+      if (notif.enabled) {
+        setNotifOpen(true);
+      }
+    };
+    loadNotification();
   }, [navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!code.trim()) {
@@ -39,16 +42,15 @@ export default function Index() {
     }
 
     setLoading(true);
-    // Simulate network delay
-    setTimeout(() => {
-      const result = validateCode(code.trim());
+    try {
+      const result = await validateCode(code.trim());
       if (!result.valid) {
         setError(result.message);
         setLoading(false);
         return;
       }
 
-      useCode(code.trim());
+      await useCode(code.trim());
       setCurrentSession({
         code: code.trim().toUpperCase(),
         deviceId: getDeviceId(),
@@ -60,11 +62,18 @@ export default function Index() {
       });
 
       navigate("/play");
+    } catch (error) {
+      setError("An error occurred. Please try again.");
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
-  const notif = getNotification();
+  const [notification, setNotification] = useState<NotificationConfig>({
+    enabled: false,
+    title: '',
+    message: ''
+  });
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -138,8 +147,8 @@ export default function Index() {
       <NotificationModal
         open={notifOpen}
         onClose={() => setNotifOpen(false)}
-        title={notif.title}
-        message={notif.message}
+        title={notification.title}
+        message={notification.message}
       />
     </div>
   );

@@ -40,7 +40,7 @@ export default function Login() {
     }
   }, [navigate]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -50,8 +50,8 @@ export default function Login() {
     }
 
     setLoading(true);
-    setTimeout(() => {
-      const result = loginUser(email.trim(), password);
+    try {
+      const result = await loginUser(email.trim(), password);
       if (!result.success) {
         setError(result.message);
         setLoading(false);
@@ -61,8 +61,8 @@ export default function Login() {
       const user = result.user!;
       // Set current session from registered user
       setCurrentSession({
-        code: user.participantCode,
-        deviceId: user.deviceId,
+        code: user.participantCode || '',
+        deviceId: user.deviceId || '',
         name: user.fullName,
         email: user.email,
         phone: user.phone,
@@ -73,12 +73,15 @@ export default function Login() {
         bankLinked: false,
         kycComplete: user.kycComplete,
         withdrawalStatus: user.withdrawalStatus,
-        dateUsed: user.dateRegistered,
+        dateUsed: user.dateRegistered || new Date().toISOString(),
       });
 
       navigate("/dashboard");
+    } catch (error) {
+      setError("Login failed. Please try again.");
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (
