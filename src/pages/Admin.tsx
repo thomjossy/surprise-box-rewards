@@ -7,15 +7,34 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  getCodes, setCodes, getBoxes, setBoxes, getParticipants,
-  getNotification, setNotification, formatCurrency,
-  type ParticipationCode, type DonationBox, type Participant, type NotificationConfig,
+  getCodes,
+  setCodes,
+  getBoxes,
+  setBoxes,
+  getParticipants,
+  getNotification,
+  setNotification,
+  formatCurrency,
+  type ParticipationCode,
+  type DonationBox,
+  type Participant,
+  type NotificationConfig,
 } from "@/lib/gameStore";
 import {
-  KeyRound, Gift, Users, Bell, Wallet, Plus, Trash2, Copy, Check, Shield,
+  KeyRound,
+  Gift,
+  Users,
+  Bell,
+  Wallet,
+  Plus,
+  Trash2,
+  Copy,
+  Check,
+  Shield,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { useToast } from "@/hooks/use-toast";
+import { requireAdmin } from "@/lib/adminAuth";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -23,50 +42,97 @@ export default function Admin() {
   const [codes, setCodesState] = useState<ParticipationCode[]>([]);
   const [boxes, setBoxesState] = useState<DonationBox[]>([]);
   const [participants, setParticipantsState] = useState<Participant[]>([]);
-  const [notif, setNotifState] = useState<NotificationConfig>({ enabled: false, title: '', message: '' });
-  const [newCode, setNewCode] = useState('');
-  const [bulkCount, setBulkCount] = useState('5');
+  const [notif, setNotifState] = useState<NotificationConfig>({
+    enabled: false,
+    title: "",
+    message: "",
+  });
+  const [newCode, setNewCode] = useState("");
+  const [bulkCount, setBulkCount] = useState("5");
   const [copied, setCopied] = useState<string | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const isAdmin = sessionStorage.getItem("tyr_admin_auth");
-    if (!isAdmin) {
-      navigate("/admin-login");
-      return;
-    }
-    
-    const loadData = async () => {
+    let cancelled = false;
+
+    const load = async () => {
+      const adminCheck = await requireAdmin();
+      if (cancelled) return;
+
+      if (!adminCheck.ok) {
+        navigate("/admin-login");
+        return;
+      }
+
+      setCheckingAuth(false);
+
       try {
-        const [codesData, boxesData, participantsData, notificationData] = await Promise.all([
-          getCodes(),
-          getBoxes(),
-          getParticipants(),
-          getNotification()
-        ]);
-        
+        const [codesData, boxesData, participantsData, notificationData] =
+          await Promise.all([
+            getCodes(),
+            getBoxes(),
+            getParticipants(),
+            getNotification(),
+          ]);
+
+        if (cancelled) return;
         setCodesState(codesData);
         setBoxesState(boxesData);
         setParticipantsState(participantsData);
         setNotifState(notificationData);
       } catch (error) {
-        console.error('Error loading admin data:', error);
+        console.error("Error loading admin data:", error);
+        toast({
+          title: "Failed to load admin data",
+          variant: "destructive",
+        });
       }
     };
-    
-    loadData();
-  }, [navigate]);
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, toast]);
+
+  if (checkingAuth) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <AppHeader />
+        <main className="flex flex-1 items-center justify-center px-4 py-12">
+          <p className="text-sm text-muted-foreground">Checking admin access…</p>
+        </main>
+      </div>
+    );
+  }
+
+  const refreshCodes = async () => {
+    const codesData = await getCodes();
+    setCodesState(codesData);
+  };
 
   const addCode = async () => {
     if (!newCode.trim()) return;
-    const updated = [...codes, {
-      code: newCode.trim().toUpperCase(),
-      isActive: true,
-      dateCreated: new Date().toISOString(),
-    }];
-    await setCodes(updated);
-    setCodesState(updated);
-    setNewCode('');
-    toast({ title: 'Code added' });
+
+    const updated = [
+      ...codes,
+      {
+        code: newCode.trim().toUpperCase(),
+        isActive: true,
+        dateCreated: new Date().toISOString(),
+      },
+    ];
+
+    try {
+      await setCodes(updated);
+      await refreshCodes();
+      setNewCode("");
+      toast({ title: "Code added" });
+    } catch {
+      await refreshCodes();
+      toast({ title: "Failed to add code", variant: "destructive" });
+    }
   };
 
   const generateBulk = async () => {
@@ -77,21 +143,42 @@ export default function Admin() {
       dateCreated: new Date().toISOString(),
     }));
     const updated = [...codes, ...newCodes];
-    await setCodes(updated);
-    setCodesState(updated);
-    toast({ title: `${count} codes generated` });
+
+    try {
+      await setCodes(updated);
+      await refreshCodes();
+      toast({ title: `${count} codes generated` });
+    } catch {
+      await refreshCodes();
+      toast({ title: "Failed to generate codes", variant: "destructive" });
+    }
   };
 
   const toggleCode = async (code: string) => {
-    const updated = codes.map(c => c.code === code ? { ...c, isActive: !c.isActive } : c);
-    await setCodes(updated);
-    setCodesState(updated);
+    const updated = codes.map((c) =>
+      c.code === code ? { ...c, isActive: !c.isActive } : c,
+    );
+
+    try {
+      await setCodes(updated);
+      await refreshCodes();
+    } catch {
+      await refreshCodes();
+      toast({ title: "Failed to update code", variant: "destructive" });
+    }
   };
 
   const deleteCode = async (code: string) => {
-    const updated = codes.filter(c => c.code !== code);
-    await setCodes(updated);
-    setCodesState(updated);
+    const updated = codes.filter((c) => c.code !== code);
+
+    try {
+      await setCodes(updated);
+      await refreshCodes();
+      toast({ title: "Code removed" });
+    } catch {
+      await refreshCodes();
+      toast({ title: "Failed to remove code", variant: "destructive" });
+    }
   };
 
   const copyCode = (code: string) => {
@@ -100,28 +187,42 @@ export default function Admin() {
     setTimeout(() => setCopied(null), 1500);
   };
 
-  const updateBoxReward = async (id: number, field: 'reward' | 'amount', value: string) => {
-    const updated = boxes.map(b => b.id === id ? { ...b, [field]: field === 'amount' ? parseInt(value) || 0 : value } : b);
+  const updateBoxReward = async (
+    id: number,
+    field: "reward" | "amount",
+    value: string,
+  ) => {
+    const updated = boxes.map((b) =>
+      b.id === id
+        ? {
+            ...b,
+            [field]: field === "amount" ? parseInt(value) || 0 : value,
+          }
+        : b,
+    );
     await setBoxes(updated);
     setBoxesState(updated);
   };
 
   const addBox = async () => {
-    const newId = boxes.length > 0 ? Math.max(...boxes.map(b => b.id)) + 1 : 1;
-    const updated = [...boxes, { id: newId, reward: `Reward ${newId}`, amount: 10000, isOpened: false }];
+    const newId = boxes.length > 0 ? Math.max(...boxes.map((b) => b.id)) + 1 : 1;
+    const updated = [
+      ...boxes,
+      { id: newId, reward: `Reward ${newId}`, amount: 10000, isOpened: false },
+    ];
     await setBoxes(updated);
     setBoxesState(updated);
   };
 
   const removeBox = async (id: number) => {
-    const updated = boxes.filter(b => b.id !== id);
+    const updated = boxes.filter((b) => b.id !== id);
     await setBoxes(updated);
     setBoxesState(updated);
   };
 
   const saveNotification = async () => {
     await setNotification(notif);
-    toast({ title: 'Notification updated' });
+    toast({ title: "Notification updated" });
   };
 
   return (

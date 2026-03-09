@@ -7,9 +7,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Shield, ArrowRight } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
-
-const ADMIN_EMAIL = "admin@thethankyou.com";
-const ADMIN_PASSWORD = "admin2024";
+import { signInAdmin } from "@/lib/adminAuth";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -18,7 +16,7 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -28,15 +26,19 @@ export default function AdminLogin() {
     }
 
     setLoading(true);
-    setTimeout(() => {
-      if (email.trim().toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-        sessionStorage.setItem("tyr_admin_auth", "true");
-        navigate("/admin");
-      } else {
-        setError("Invalid admin credentials.");
+    try {
+      const result = await signInAdmin(email, password);
+      if (!result.ok) {
+        setError(result.message);
+        return;
       }
+
+      navigate("/admin");
+    } catch {
+      setError("Sign in failed. Please try again.");
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   return (
