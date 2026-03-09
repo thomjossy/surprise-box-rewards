@@ -10,11 +10,12 @@ import AppHeader from "@/components/AppHeader";
 
 export default function Play() {
   const navigate = useNavigate();
-  const [boxes, setBoxes] = useState(getBoxes());
+  const [boxes, setBoxes] = useState<any[]>([]);
   const [selectedBox, setSelectedBox] = useState<number | null>(null);
   const [rewardModalOpen, setRewardModalOpen] = useState(false);
   const [claimFlowOpen, setClaimFlowOpen] = useState(false);
   const [currentReward, setCurrentReward] = useState({ reward: '', amount: 0, boxNumber: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const session = getCurrentSession();
@@ -25,6 +26,13 @@ export default function Play() {
     if (session.boxSelected) {
       navigate("/dashboard");
     }
+    
+    const loadBoxes = async () => {
+      const boxesData = await getBoxes();
+      setBoxes(boxesData);
+      setLoading(false);
+    };
+    loadBoxes();
   }, [navigate]);
 
   const fireConfetti = useCallback(() => {
@@ -39,7 +47,7 @@ export default function Play() {
     })();
   }, []);
 
-  const handleSelectBox = (boxId: number) => {
+  const handleSelectBox = async (boxId: number) => {
     if (selectedBox !== null) return;
 
     const box = boxes.find(b => b.id === boxId);
@@ -49,7 +57,7 @@ export default function Play() {
     setCurrentReward({ reward: box.reward, amount: box.amount, boxNumber: box.id });
 
     // Update box as opened
-    updateBox(boxId, { isOpened: true, openedBy: getCurrentSession()?.code });
+    await updateBox(boxId, { isOpened: true, openedBy: getCurrentSession()?.code });
 
     // Update session
     const session = getCurrentSession();
@@ -61,7 +69,7 @@ export default function Play() {
         amountWon: box.amount,
       };
       setCurrentSession(updated);
-      addParticipant(updated);
+      await addParticipant(updated);
     }
 
     // Delay modal + confetti
@@ -117,13 +125,20 @@ export default function Play() {
           </p>
         </motion.div>
 
-        <div className="w-full max-w-xl">
-          <DonationBoxGrid
-            boxes={boxes}
-            selectedBox={selectedBox}
-            onSelectBox={handleSelectBox}
-          />
-        </div>
+        
+        {loading ? (
+          <div className="text-center">
+            <p className="text-muted-foreground">Loading boxes...</p>
+          </div>
+        ) : (
+          <div className="w-full max-w-xl">
+            <DonationBoxGrid
+              boxes={boxes}
+              selectedBox={selectedBox}
+              onSelectBox={handleSelectBox}
+            />
+          </div>
+        )}
 
         {selectedBox && !rewardModalOpen && !claimFlowOpen && (
           <motion.div

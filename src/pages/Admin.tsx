@@ -34,51 +34,63 @@ export default function Admin() {
       navigate("/admin-login");
       return;
     }
-    setCodesState(getCodes());
-    setBoxesState(getBoxes());
-    setParticipantsState(getParticipants());
-    setNotifState(getNotification());
+    
+    const loadData = async () => {
+      try {
+        const [codesData, boxesData, participantsData, notificationData] = await Promise.all([
+          getCodes(),
+          getBoxes(),
+          getParticipants(),
+          getNotification()
+        ]);
+        
+        setCodesState(codesData);
+        setBoxesState(boxesData);
+        setParticipantsState(participantsData);
+        setNotifState(notificationData);
+      } catch (error) {
+        console.error('Error loading admin data:', error);
+      }
+    };
+    
+    loadData();
   }, [navigate]);
 
-  const addCode = () => {
+  const addCode = async () => {
     if (!newCode.trim()) return;
     const updated = [...codes, {
       code: newCode.trim().toUpperCase(),
       isActive: true,
-      usedBy: [],
-      devicesUsed: [],
       dateCreated: new Date().toISOString(),
     }];
-    setCodes(updated);
+    await setCodes(updated);
     setCodesState(updated);
     setNewCode('');
     toast({ title: 'Code added' });
   };
 
-  const generateBulk = () => {
+  const generateBulk = async () => {
     const count = parseInt(bulkCount) || 5;
     const newCodes: ParticipationCode[] = Array.from({ length: count }, () => ({
       code: `TYR-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
       isActive: true,
-      usedBy: [],
-      devicesUsed: [],
       dateCreated: new Date().toISOString(),
     }));
     const updated = [...codes, ...newCodes];
-    setCodes(updated);
+    await setCodes(updated);
     setCodesState(updated);
     toast({ title: `${count} codes generated` });
   };
 
-  const toggleCode = (code: string) => {
+  const toggleCode = async (code: string) => {
     const updated = codes.map(c => c.code === code ? { ...c, isActive: !c.isActive } : c);
-    setCodes(updated);
+    await setCodes(updated);
     setCodesState(updated);
   };
 
-  const deleteCode = (code: string) => {
+  const deleteCode = async (code: string) => {
     const updated = codes.filter(c => c.code !== code);
-    setCodes(updated);
+    await setCodes(updated);
     setCodesState(updated);
   };
 
@@ -88,27 +100,27 @@ export default function Admin() {
     setTimeout(() => setCopied(null), 1500);
   };
 
-  const updateBoxReward = (id: number, field: 'reward' | 'amount', value: string) => {
+  const updateBoxReward = async (id: number, field: 'reward' | 'amount', value: string) => {
     const updated = boxes.map(b => b.id === id ? { ...b, [field]: field === 'amount' ? parseInt(value) || 0 : value } : b);
-    setBoxes(updated);
+    await setBoxes(updated);
     setBoxesState(updated);
   };
 
-  const addBox = () => {
+  const addBox = async () => {
     const newId = boxes.length > 0 ? Math.max(...boxes.map(b => b.id)) + 1 : 1;
     const updated = [...boxes, { id: newId, reward: `Reward ${newId}`, amount: 10000, isOpened: false }];
-    setBoxes(updated);
+    await setBoxes(updated);
     setBoxesState(updated);
   };
 
-  const removeBox = (id: number) => {
+  const removeBox = async (id: number) => {
     const updated = boxes.filter(b => b.id !== id);
-    setBoxes(updated);
+    await setBoxes(updated);
     setBoxesState(updated);
   };
 
-  const saveNotification = () => {
-    setNotification(notif);
+  const saveNotification = async () => {
+    await setNotification(notif);
     toast({ title: 'Notification updated' });
   };
 
@@ -150,7 +162,7 @@ export default function Admin() {
               {codes.map(c => (
                 <motion.div key={c.code} layout className="glass-card flex items-center gap-3 rounded-lg px-4 py-3">
                   <span className={`flex-1 font-mono text-sm ${c.isActive ? 'text-foreground' : 'text-muted-foreground line-through'}`}>{c.code}</span>
-                  <span className="text-xs text-muted-foreground">{c.devicesUsed.length} used</span>
+                  <span className="text-xs text-muted-foreground">Active</span>
                   <button onClick={() => copyCode(c.code)} className="text-muted-foreground hover:text-foreground">
                     {copied === c.code ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
                   </button>
