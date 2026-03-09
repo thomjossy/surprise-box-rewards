@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
@@ -217,7 +218,7 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
                     <Input value={formData.phone} onChange={e => updateField('phone', e.target.value)} placeholder="Phone number" className="flex-1" />
                   </div>
                 </div>
-                <div><Label>Password</Label><Input type="password" value={formData.password} onChange={e => updateField('password', e.target.value)} placeholder="Create a password" /></div>
+                <div><Label>Password</Label><PasswordInput value={formData.password} onChange={e => updateField('password', e.target.value)} placeholder="Create a password" /></div>
               </>
             )}
 
