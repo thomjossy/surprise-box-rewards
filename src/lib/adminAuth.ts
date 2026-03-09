@@ -27,7 +27,7 @@ export async function signInAdmin(email: string, password: string): Promise<
   if (error) return { ok: false, message: error.message };
 
   const check = await requireAdmin();
-  if (!check.ok) {
+  if (check.ok === false) {
     await supabase.auth.signOut();
 
     if (check.reason === "not_admin") {

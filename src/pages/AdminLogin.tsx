@@ -28,7 +28,7 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const result = await signInAdmin(email, password);
-      if (!result.ok) {
+      if (result.ok === false) {
         setError(result.message);
         return;
       }
