@@ -8,29 +8,25 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   getCodes,
-  setCodes,
   getBoxes,
   setBoxes,
   getParticipants,
   getNotification,
   setNotification,
   formatCurrency,
+  addSingleCode,
+  addMultipleCodes,
+  toggleCodeActive,
+  deleteSingleCode,
+  updateBox,
   type ParticipationCode,
   type DonationBox,
   type Participant,
   type NotificationConfig,
 } from "@/lib/gameStore";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  KeyRound,
-  Gift,
-  Users,
-  Bell,
-  Wallet,
-  Plus,
-  Trash2,
-  Copy,
-  Check,
-  Shield,
+  KeyRound, Gift, Users, Bell, Wallet, Plus, Trash2, Copy, Check, Shield,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { useToast } from "@/hooks/use-toast";
@@ -42,11 +38,7 @@ export default function Admin() {
   const [codes, setCodesState] = useState<ParticipationCode[]>([]);
   const [boxes, setBoxesState] = useState<DonationBox[]>([]);
   const [participants, setParticipantsState] = useState<Participant[]>([]);
-  const [notif, setNotifState] = useState<NotificationConfig>({
-    enabled: false,
-    title: "",
-    message: "",
-  });
+  const [notif, setNotifState] = useState<NotificationConfig>({ enabled: false, title: "", message: "" });
   const [newCode, setNewCode] = useState("");
   const [bulkCount, setBulkCount] = useState("5");
   const [copied, setCopied] = useState<string | null>(null);
@@ -58,23 +50,13 @@ export default function Admin() {
     const load = async () => {
       const adminCheck = await requireAdmin();
       if (cancelled) return;
-
-      if (!adminCheck.ok) {
-        navigate("/admin-login");
-        return;
-      }
-
+      if (!adminCheck.ok) { navigate("/admin-login"); return; }
       setCheckingAuth(false);
 
       try {
-        const [codesData, boxesData, participantsData, notificationData] =
-          await Promise.all([
-            getCodes(),
-            getBoxes(),
-            getParticipants(),
-            getNotification(),
-          ]);
-
+        const [codesData, boxesData, participantsData, notificationData] = await Promise.all([
+          getCodes(), getBoxes(), getParticipants(), getNotification(),
+        ]);
         if (cancelled) return;
         setCodesState(codesData);
         setBoxesState(boxesData);
@@ -82,18 +64,12 @@ export default function Admin() {
         setNotifState(notificationData);
       } catch (error) {
         console.error("Error loading admin data:", error);
-        toast({
-          title: "Failed to load admin data",
-          variant: "destructive",
-        });
+        toast({ title: "Failed to load admin data", variant: "destructive" });
       }
     };
 
     load();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [navigate, toast]);
 
   if (checkingAuth) {
@@ -107,25 +83,14 @@ export default function Admin() {
     );
   }
 
-  const refreshCodes = async () => {
-    const codesData = await getCodes();
-    setCodesState(codesData);
-  };
+  const refreshCodes = async () => { setCodesState(await getCodes()); };
+  const refreshBoxes = async () => { setBoxesState(await getBoxes()); };
+  const refreshParticipants = async () => { setParticipantsState(await getParticipants()); };
 
   const addCode = async () => {
     if (!newCode.trim()) return;
-
-    const updated = [
-      ...codes,
-      {
-        code: newCode.trim().toUpperCase(),
-        isActive: true,
-        dateCreated: new Date().toISOString(),
-      },
-    ];
-
     try {
-      await setCodes(updated);
+      await addSingleCode({ code: newCode.trim().toUpperCase(), isActive: true, dateCreated: new Date().toISOString() });
       await refreshCodes();
       setNewCode("");
       toast({ title: "Code added" });
@@ -142,10 +107,8 @@ export default function Admin() {
       isActive: true,
       dateCreated: new Date().toISOString(),
     }));
-    const updated = [...codes, ...newCodes];
-
     try {
-      await setCodes(updated);
+      await addMultipleCodes(newCodes);
       await refreshCodes();
       toast({ title: `${count} codes generated` });
     } catch {
@@ -154,13 +117,11 @@ export default function Admin() {
     }
   };
 
-  const toggleCode = async (code: string) => {
-    const updated = codes.map((c) =>
-      c.code === code ? { ...c, isActive: !c.isActive } : c,
-    );
-
+  const handleToggleCode = async (code: string) => {
+    const current = codes.find(c => c.code === code);
+    if (!current) return;
     try {
-      await setCodes(updated);
+      await toggleCodeActive(code, !current.isActive);
       await refreshCodes();
     } catch {
       await refreshCodes();
@@ -169,10 +130,8 @@ export default function Admin() {
   };
 
   const deleteCode = async (code: string) => {
-    const updated = codes.filter((c) => c.code !== code);
-
     try {
-      await setCodes(updated);
+      await deleteSingleCode(code);
       await refreshCodes();
       toast({ title: "Code removed" });
     } catch {
@@ -187,42 +146,48 @@ export default function Admin() {
     setTimeout(() => setCopied(null), 1500);
   };
 
-  const updateBoxReward = async (
-    id: number,
-    field: "reward" | "amount",
-    value: string,
-  ) => {
-    const updated = boxes.map((b) =>
-      b.id === id
-        ? {
-            ...b,
-            [field]: field === "amount" ? parseInt(value) || 0 : value,
-          }
-        : b,
-    );
-    await setBoxes(updated);
-    setBoxesState(updated);
+  const updateBoxReward = async (id: number, field: "reward" | "amount", value: string) => {
+    const updates: Partial<DonationBox> = field === "amount" ? { amount: parseInt(value) || 0 } : { reward: value };
+    // Optimistic update
+    setBoxesState(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+    try {
+      await updateBox(id, updates);
+    } catch {
+      await refreshBoxes();
+      toast({ title: "Failed to update box", variant: "destructive" });
+    }
   };
 
   const addBox = async () => {
-    const newId = boxes.length > 0 ? Math.max(...boxes.map((b) => b.id)) + 1 : 1;
-    const updated = [
-      ...boxes,
-      { id: newId, reward: `Reward ${newId}`, amount: 10000, isOpened: false },
-    ];
-    await setBoxes(updated);
-    setBoxesState(updated);
+    const newId = boxes.length > 0 ? Math.max(...boxes.map(b => b.id)) + 1 : 1;
+    try {
+      const { error } = await supabase.from('reward_boxes').insert([{ id: newId, reward: `Reward ${newId}`, amount: 10000 }]);
+      if (error) throw error;
+      await refreshBoxes();
+      toast({ title: "Box added" });
+    } catch {
+      toast({ title: "Failed to add box", variant: "destructive" });
+    }
   };
 
   const removeBox = async (id: number) => {
-    const updated = boxes.filter((b) => b.id !== id);
-    await setBoxes(updated);
-    setBoxesState(updated);
+    try {
+      const { error } = await supabase.from('reward_boxes').delete().eq('id', id);
+      if (error) throw error;
+      await refreshBoxes();
+      toast({ title: "Box removed" });
+    } catch {
+      toast({ title: "Failed to remove box", variant: "destructive" });
+    }
   };
 
   const saveNotification = async () => {
-    await setNotification(notif);
-    toast({ title: "Notification updated" });
+    try {
+      await setNotification(notif);
+      toast({ title: "Notification updated" });
+    } catch {
+      toast({ title: "Failed to update notification", variant: "destructive" });
+    }
   };
 
   return (
@@ -267,7 +232,7 @@ export default function Admin() {
                   <button onClick={() => copyCode(c.code)} className="text-muted-foreground hover:text-foreground">
                     {copied === c.code ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
                   </button>
-                  <Switch checked={c.isActive} onCheckedChange={() => toggleCode(c.code)} />
+                  <Switch checked={c.isActive} onCheckedChange={() => handleToggleCode(c.code)} />
                   <button onClick={() => deleteCode(c.code)} className="text-muted-foreground hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -283,19 +248,8 @@ export default function Admin() {
               {boxes.map(box => (
                 <div key={box.id} className="glass-card flex flex-wrap items-center gap-3 rounded-lg px-4 py-3">
                   <span className="min-w-[60px] font-display text-sm font-semibold">Box {box.id}</span>
-                  <Input
-                    value={box.reward}
-                    onChange={e => updateBoxReward(box.id, 'reward', e.target.value)}
-                    className="flex-1 min-w-[120px]"
-                    placeholder="Reward name"
-                  />
-                  <Input
-                    value={box.amount}
-                    onChange={e => updateBoxReward(box.id, 'amount', e.target.value)}
-                    className="w-28"
-                    type="number"
-                    placeholder="Amount"
-                  />
+                  <Input value={box.reward} onChange={e => updateBoxReward(box.id, 'reward', e.target.value)} className="flex-1 min-w-[120px]" placeholder="Reward name" />
+                  <Input value={box.amount} onChange={e => updateBoxReward(box.id, 'amount', e.target.value)} className="w-28" type="number" placeholder="Amount" />
                   <span className={`text-xs ${box.isOpened ? 'text-reward-gold' : 'text-muted-foreground'}`}>
                     {box.isOpened ? 'Opened' : 'Available'}
                   </span>
@@ -309,6 +263,9 @@ export default function Admin() {
 
           {/* PARTICIPANTS TAB */}
           <TabsContent value="participants">
+            <div className="mb-4">
+              <Button onClick={refreshParticipants} size="sm" variant="outline">Refresh</Button>
+            </div>
             {participants.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No participants yet</p>
             ) : (

@@ -2,12 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { getCurrentSession, formatCurrency, logoutUser, registerUser } from "@/lib/gameStore";
+import { getCurrentSession, setCurrentSession, clearCurrentSession, formatCurrency, logoutUser, registerUser, updateParticipant } from "@/lib/gameStore";
 import { Gift, Wallet, Box, ShieldCheck, MessageCircle, LogOut } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import ClaimRewardFlow from "@/components/ClaimRewardFlow";
 import type { Participant } from "@/lib/gameStore";
-import { setCurrentSession } from "@/lib/gameStore";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -51,7 +50,6 @@ export default function Dashboard() {
       <AppHeader winnerName={session.name} balanceWon={session.amountWon} />
 
       <main className="container max-w-lg flex-1 py-8">
-        {/* Mobile balance header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -100,9 +98,8 @@ export default function Dashboard() {
           <Button
             variant="ghost"
             className="w-full gap-2 text-muted-foreground"
-            onClick={() => {
-              logoutUser();
-              localStorage.removeItem('tyr_current_session');
+            onClick={async () => {
+              await logoutUser();
               navigate('/');
             }}
           >
@@ -114,12 +111,14 @@ export default function Dashboard() {
       <ClaimRewardFlow
         open={claimOpen}
         onClose={() => setClaimOpen(false)}
-        onComplete={(formData) => {
-          const updated = {
+        onComplete={async (formData) => {
+          const updated: Participant = {
             ...session,
             name: formData.fullName,
             email: formData.email,
             phone: `${formData.countryCode}${formData.phone}`,
+            countryCode: formData.countryCode,
+            address: formData.address,
             registrationComplete: true,
             bankLinked: false,
             kycComplete: true,
@@ -128,23 +127,27 @@ export default function Dashboard() {
           setCurrentSession(updated);
           setSession(updated);
 
-          // Register the user so they can log in later
-          registerUser({
-            email: formData.email,
-            password: formData.password,
-            fullName: formData.fullName,
-            phone: formData.phone,
-            countryCode: formData.countryCode,
-            participantCode: session.code,
-            deviceId: session.deviceId,
-            boxSelected: session.boxSelected,
-            rewardWon: session.rewardWon,
-            amountWon: session.amountWon,
-            registrationComplete: true,
-            kycComplete: true,
-            withdrawalStatus: 'pending',
-            dateRegistered: new Date().toISOString(),
-          });
+          // Register user in auth + update participant in DB
+          try {
+            await registerUser({
+              email: formData.email,
+              password: formData.password,
+              fullName: formData.fullName,
+              phone: formData.phone,
+              countryCode: formData.countryCode,
+              participantCode: session.code,
+              deviceId: session.deviceId,
+              boxSelected: session.boxSelected,
+              rewardWon: session.rewardWon,
+              amountWon: session.amountWon,
+              registrationComplete: true,
+              kycComplete: true,
+              withdrawalStatus: 'pending',
+              dateRegistered: new Date().toISOString(),
+            });
+          } catch (err) {
+            console.error('Registration error:', err);
+          }
 
           setClaimOpen(false);
         }}
