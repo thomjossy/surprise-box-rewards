@@ -13,19 +13,23 @@ export default function Index() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notification, setNotification] = useState<NotificationConfig>({
+    enabled: false,
+    title: '',
+    message: ''
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user already has an active session
     const session = getCurrentSession();
     if (session?.boxSelected) {
       navigate("/dashboard");
       return;
     }
 
-    // Show notification
     const loadNotification = async () => {
       const notif = await getNotification();
+      setNotification(notif);
       if (notif.enabled) {
         setNotifOpen(true);
       }
@@ -68,12 +72,6 @@ export default function Index() {
       setLoading(false);
     }
   };
-
-  const [notification, setNotification] = useState<NotificationConfig>({
-    enabled: false,
-    title: '',
-    message: ''
-  });
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

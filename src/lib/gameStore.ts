@@ -59,7 +59,7 @@ export interface RegisteredUser {
 
 const STORAGE_KEYS = {
   DEVICE_ID: 'tyr_device_id',
-  LOGGED_IN_USER: 'tyr_logged_in_user',
+  CURRENT_SESSION: 'tyr_current_session',
 };
 
 // Generate a device fingerprint
@@ -70,6 +70,24 @@ export function getDeviceId(): string {
     localStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
   }
   return deviceId;
+}
+
+// Session management using localStorage
+export function getCurrentSession(): Participant | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setCurrentSession(session: Participant): void {
+  localStorage.setItem(STORAGE_KEYS.CURRENT_SESSION, JSON.stringify(session));
+}
+
+export function clearCurrentSession(): void {
+  localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION);
 }
 
 // Check if device has used a code
@@ -95,13 +113,7 @@ export async function markCodeUsedOnDevice(code: string, userId?: string): Promi
   const deviceId = getDeviceId();
   const { error } = await supabase
     .from('code_usage')
-    .insert([
-      {
-        code: code.toUpperCase(),
-        device_id: deviceId,
-        user_id: userId || null,
-      }
-    ]);
+    .insert([{ code: code.toUpperCase(), device_id: deviceId, user_id: userId || null }]);
   
   if (error) {
     console.error('Error marking code as used:', error);
@@ -124,8 +136,8 @@ export async function getBoxes(): Promise<DonationBox[]> {
     id: box.id,
     reward: box.reward,
     amount: box.amount,
-    isOpened: box.is_opened,
-    openedBy: box.opened_by,
+    isOpened: box.is_opened ?? false,
+    openedBy: box.opened_by ?? undefined,
   }));
 }
 
@@ -144,6 +156,7 @@ export async function updateBox(boxId: number, updates: Partial<DonationBox>): P
   
   if (error) {
     console.error('Error updating box:', error);
+    throw error;
   }
 }
 
@@ -168,37 +181,98 @@ export async function getCodes(): Promise<ParticipationCode[]> {
   
   return data.map(code => ({
     code: code.code,
-    isActive: code.is_active,
-    dateCreated: code.date_created,
+    isActive: code.is_active ?? true,
+    dateCreated: code.date_created ?? code.created_at ?? '',
   }));
 }
 
-// Set participation codes (admin use)
-export async function setCodes(codes: ParticipationCode[]): Promise<void> {
-  // Delete all existing codes
-  await supabase.from('participation_codes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  
-  // Insert new codes
+// Add a single participation code
+export async function addSingleCode(code: ParticipationCode): Promise<void> {
   const { error } = await supabase
     .from('participation_codes')
-    .insert(codes.map(code => ({
+    .insert([{
       code: code.code,
       is_active: code.isActive,
       date_created: code.dateCreated,
+    }]);
+  
+  if (error) {
+    console.error('Error adding code:', error);
+    throw error;
+  }
+}
+
+// Add multiple participation codes
+export async function addMultipleCodes(codes: ParticipationCode[]): Promise<void> {
+  const { error } = await supabase
+    .from('participation_codes')
+    .insert(codes.map(c => ({
+      code: c.code,
+      is_active: c.isActive,
+      date_created: c.dateCreated,
     })));
   
   if (error) {
-    console.error('Error setting codes:', error);
+    console.error('Error adding codes:', error);
+    throw error;
+  }
+}
+
+// Toggle a code's active status
+export async function toggleCodeActive(code: string, isActive: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('participation_codes')
+    .update({ is_active: isActive })
+    .eq('code', code);
+  
+  if (error) {
+    console.error('Error toggling code:', error);
+    throw error;
+  }
+}
+
+// Delete a participation code
+export async function deleteSingleCode(code: string): Promise<void> {
+  const { error } = await supabase
+    .from('participation_codes')
+    .delete()
+    .eq('code', code);
+  
+  if (error) {
+    console.error('Error deleting code:', error);
+    throw error;
+  }
+}
+
+// Legacy setCodes - kept for compatibility but prefer individual operations
+export async function setCodes(codes: ParticipationCode[]): Promise<void> {
+  // This is a destructive operation - delete all and reinsert
+  await supabase.from('participation_codes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  if (codes.length > 0) {
+    const { error } = await supabase
+      .from('participation_codes')
+      .insert(codes.map(code => ({
+        code: code.code,
+        is_active: code.isActive,
+        date_created: code.dateCreated,
+      })));
+    if (error) {
+      console.error('Error setting codes:', error);
+      throw error;
+    }
   }
 }
 
 // Validate participation code
 export async function validateCode(code: string): Promise<{ valid: boolean; message: string }> {
-  const codes = await getCodes();
-  const found = codes.find(c => c.code.toUpperCase() === code.toUpperCase());
+  const { data, error } = await supabase
+    .from('participation_codes')
+    .select('*')
+    .eq('code', code.toUpperCase())
+    .single();
   
-  if (!found) return { valid: false, message: 'Invalid participation code.' };
-  if (!found.isActive) return { valid: false, message: 'This code has been disabled.' };
+  if (error || !data) return { valid: false, message: 'Invalid participation code.' };
+  if (!data.is_active) return { valid: false, message: 'This code has been disabled.' };
   
   const deviceUsed = await hasDeviceUsedCode(code);
   if (deviceUsed) {
@@ -211,19 +285,6 @@ export async function validateCode(code: string): Promise<{ valid: boolean; mess
 // Use a participation code
 export async function useCode(code: string, userId?: string): Promise<void> {
   await markCodeUsedOnDevice(code.toUpperCase(), userId);
-}
-
-// Get current session participant from local storage (for compatibility)
-export function getCurrentSession(): Participant | null {
-  const deviceId = getDeviceId();
-  // For now, return null as we'll handle this through Supabase queries
-  return null;
-}
-
-// Set current session (for compatibility, but we'll use Supabase)
-export function setCurrentSession(session: Participant): void {
-  // This will be handled through Supabase operations
-  console.log('Session management moved to Supabase');
 }
 
 // Get participants from Supabase
@@ -241,20 +302,20 @@ export async function getParticipants(): Promise<Participant[]> {
   return data.map(p => ({
     code: p.code,
     deviceId: p.device_id,
-    name: p.name,
-    email: p.email,
-    phone: p.phone,
-    countryCode: p.country_code,
-    address: p.address,
-    boxSelected: p.box_selected,
-    rewardWon: p.reward_won,
-    amountWon: p.amount_won || 0,
-    registrationComplete: p.registration_complete,
-    bankLinked: p.bank_linked,
-    kycComplete: p.kyc_complete,
-    withdrawalStatus: p.withdrawal_status as any,
-    dateUsed: p.date_used,
-    userId: p.user_id,
+    name: p.name ?? undefined,
+    email: p.email ?? undefined,
+    phone: p.phone ?? undefined,
+    countryCode: p.country_code ?? undefined,
+    address: p.address ?? undefined,
+    boxSelected: p.box_selected ?? undefined,
+    rewardWon: p.reward_won ?? undefined,
+    amountWon: p.amount_won ?? 0,
+    registrationComplete: p.registration_complete ?? false,
+    bankLinked: p.bank_linked ?? false,
+    kycComplete: p.kyc_complete ?? false,
+    withdrawalStatus: (p.withdrawal_status as any) ?? 'none',
+    dateUsed: p.date_used ?? p.created_at ?? '',
+    userId: p.user_id ?? undefined,
   }));
 }
 
@@ -283,6 +344,7 @@ export async function addParticipant(participant: Participant): Promise<void> {
   
   if (error) {
     console.error('Error adding participant:', error);
+    throw error;
   }
 }
 
@@ -301,6 +363,7 @@ export async function updateParticipant(code: string, deviceId: string, updates:
   if (updates.bankLinked !== undefined) dbUpdates.bank_linked = updates.bankLinked;
   if (updates.kycComplete !== undefined) dbUpdates.kyc_complete = updates.kycComplete;
   if (updates.withdrawalStatus !== undefined) dbUpdates.withdrawal_status = updates.withdrawalStatus;
+  if (updates.userId !== undefined) dbUpdates.user_id = updates.userId;
   
   const { error } = await supabase
     .from('participants')
@@ -310,7 +373,40 @@ export async function updateParticipant(code: string, deviceId: string, updates:
   
   if (error) {
     console.error('Error updating participant:', error);
+    throw error;
   }
+}
+
+// Get participant by user_id
+export async function getParticipantByUserId(userId: string): Promise<Participant | null> {
+  const { data, error } = await supabase
+    .from('participants')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+  
+  if (error || !data) return null;
+  
+  return {
+    code: data.code,
+    deviceId: data.device_id,
+    name: data.name ?? undefined,
+    email: data.email ?? undefined,
+    phone: data.phone ?? undefined,
+    countryCode: data.country_code ?? undefined,
+    address: data.address ?? undefined,
+    boxSelected: data.box_selected ?? undefined,
+    rewardWon: data.reward_won ?? undefined,
+    amountWon: data.amount_won ?? 0,
+    registrationComplete: data.registration_complete ?? false,
+    bankLinked: data.bank_linked ?? false,
+    kycComplete: data.kyc_complete ?? false,
+    withdrawalStatus: (data.withdrawal_status as any) ?? 'none',
+    dateUsed: data.date_used ?? data.created_at ?? '',
+    userId: data.user_id ?? undefined,
+  };
 }
 
 // Get notification config from Supabase
@@ -319,7 +415,8 @@ export async function getNotification(): Promise<NotificationConfig> {
     .from('notifications')
     .select('*')
     .eq('enabled', true)
-    .single();
+    .limit(1)
+    .maybeSingle();
   
   if (error || !data) {
     return {
@@ -330,7 +427,7 @@ export async function getNotification(): Promise<NotificationConfig> {
   }
   
   return {
-    enabled: data.enabled,
+    enabled: data.enabled ?? true,
     title: data.title,
     message: data.message,
   };
@@ -338,7 +435,6 @@ export async function getNotification(): Promise<NotificationConfig> {
 
 // Set notification config in Supabase
 export async function setNotification(config: NotificationConfig): Promise<void> {
-  // Delete existing notification and insert new one
   await supabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   
   const { error } = await supabase
@@ -351,16 +447,8 @@ export async function setNotification(config: NotificationConfig): Promise<void>
   
   if (error) {
     console.error('Error setting notification:', error);
+    throw error;
   }
-}
-
-// Legacy localStorage functions for compatibility
-export function getUserData() {
-  return null; // Now handled through Supabase auth
-}
-
-export function setUserData(data: any): void {
-  console.log('User data management moved to Supabase');
 }
 
 export function formatCurrency(amount: number): string {
@@ -379,23 +467,16 @@ export async function registerUser(user: RegisteredUser): Promise<void> {
     throw authError;
   }
   
-  // Add participant record
+  // Update the existing participant record with user_id
   if (authData.user) {
-    await addParticipant({
-      code: user.participantCode,
-      deviceId: user.deviceId,
+    await updateParticipant(user.participantCode, user.deviceId, {
       name: user.fullName,
       email: user.email,
       phone: user.phone,
       countryCode: user.countryCode,
-      boxSelected: user.boxSelected,
-      rewardWon: user.rewardWon,
-      amountWon: user.amountWon || 0,
       registrationComplete: user.registrationComplete,
-      bankLinked: false,
       kycComplete: user.kycComplete,
       withdrawalStatus: user.withdrawalStatus,
-      dateUsed: user.dateRegistered,
       userId: authData.user.id,
     });
   }
@@ -411,16 +492,15 @@ export async function loginUser(email: string, password: string): Promise<{ succ
     return { success: false, message: error.message };
   }
   
-  return { success: true, user: data.user, message: 'Login successful!' };
-}
-
-export function getLoggedInUser(): any {
-  return supabase.auth.getUser();
+  // Fetch participant data for this user
+  const participant = await getParticipantByUserId(data.user.id);
+  
+  return { success: true, user: { ...data.user, participant }, message: 'Login successful!' };
 }
 
 export async function logoutUser(): Promise<void> {
   await supabase.auth.signOut();
-  localStorage.removeItem(STORAGE_KEYS.LOGGED_IN_USER);
+  clearCurrentSession();
 }
 
 // Subscribe to real-time updates for boxes

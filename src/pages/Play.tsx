@@ -16,15 +16,16 @@ export default function Play() {
   const [claimFlowOpen, setClaimFlowOpen] = useState(false);
   const [currentReward, setCurrentReward] = useState({ reward: '', amount: 0, boxNumber: 0 });
   const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState(getCurrentSession());
 
   useEffect(() => {
-    const session = getCurrentSession();
     if (!session) {
       navigate("/");
       return;
     }
     if (session.boxSelected) {
       navigate("/dashboard");
+      return;
     }
     
     const loadBoxes = async () => {
@@ -33,7 +34,7 @@ export default function Play() {
       setLoading(false);
     };
     loadBoxes();
-  }, [navigate]);
+  }, [navigate, session]);
 
   const fireConfetti = useCallback(() => {
     const duration = 2000;
@@ -51,28 +52,37 @@ export default function Play() {
     if (selectedBox !== null) return;
 
     const box = boxes.find(b => b.id === boxId);
-    if (!box) return;
+    if (!box || box.isOpened) return;
 
     setSelectedBox(boxId);
     setCurrentReward({ reward: box.reward, amount: box.amount, boxNumber: box.id });
 
-    // Update box as opened
-    await updateBox(boxId, { isOpened: true, openedBy: getCurrentSession()?.code });
+    // Update box as opened in DB
+    try {
+      await updateBox(boxId, { isOpened: true, openedBy: session?.code });
+    } catch (err) {
+      console.error('Failed to update box:', err);
+    }
 
-    // Update session
-    const session = getCurrentSession();
+    // Update local session and save participant to DB
     if (session) {
-      const updated = {
+      const updated: typeof session = {
         ...session,
         boxSelected: boxId,
         rewardWon: box.reward,
         amountWon: box.amount,
       };
       setCurrentSession(updated);
-      await addParticipant(updated);
+      setSession(updated);
+
+      // Save participant record to DB
+      try {
+        await addParticipant(updated);
+      } catch (err) {
+        console.error('Failed to save participant:', err);
+      }
     }
 
-    // Delay modal + confetti
     setTimeout(() => {
       fireConfetti();
       setRewardModalOpen(true);
@@ -85,24 +95,25 @@ export default function Play() {
   };
 
   const handleClaimComplete = (formData: any) => {
-    const session = getCurrentSession();
     if (session) {
-      setCurrentSession({
+      const updated = {
         ...session,
         name: formData.fullName,
         email: formData.email,
-        phone: formData.phone,
+        phone: `${formData.countryCode}${formData.phone}`,
+        countryCode: formData.countryCode,
+        address: formData.address,
         registrationComplete: true,
         bankLinked: false,
         kycComplete: true,
-        withdrawalStatus: 'pending',
-      });
+        withdrawalStatus: 'pending' as const,
+      };
+      setCurrentSession(updated);
+      setSession(updated);
     }
     setClaimFlowOpen(false);
     navigate("/dashboard");
   };
-
-  const session = getCurrentSession();
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -125,7 +136,6 @@ export default function Play() {
           </p>
         </motion.div>
 
-        
         {loading ? (
           <div className="text-center">
             <p className="text-muted-foreground">Loading boxes...</p>

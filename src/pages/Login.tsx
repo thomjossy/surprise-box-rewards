@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { LogIn, ArrowRight, Gift } from "lucide-react";
-import { loginUser, getLoggedInUser, getCurrentSession, setCurrentSession } from "@/lib/gameStore";
+import { loginUser, setCurrentSession, getDeviceId } from "@/lib/gameStore";
+import { supabase } from "@/integrations/supabase/client";
 import AppHeader from "@/components/AppHeader";
+import { getParticipantByUserId } from "@/lib/gameStore";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -17,27 +19,18 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // If already logged in, go to dashboard
-    const loggedIn = getLoggedInUser();
-    if (loggedIn) {
-      // Restore session from registered user data
-      setCurrentSession({
-        code: loggedIn.participantCode,
-        deviceId: loggedIn.deviceId,
-        name: loggedIn.fullName,
-        email: loggedIn.email,
-        phone: loggedIn.phone,
-        boxSelected: loggedIn.boxSelected,
-        rewardWon: loggedIn.rewardWon,
-        amountWon: loggedIn.amountWon,
-        registrationComplete: loggedIn.registrationComplete,
-        bankLinked: false,
-        kycComplete: loggedIn.kycComplete,
-        withdrawalStatus: loggedIn.withdrawalStatus,
-        dateUsed: loggedIn.dateRegistered,
-      });
-      navigate("/dashboard");
-    }
+    // Check if user is already logged in via Supabase session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const participant = await getParticipantByUserId(session.user.id);
+        if (participant && participant.boxSelected) {
+          setCurrentSession(participant);
+          navigate("/dashboard");
+        }
+      }
+    };
+    checkSession();
   }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -58,25 +51,13 @@ export default function Login() {
         return;
       }
 
-      const user = result.user!;
-      // Set current session from registered user
-      setCurrentSession({
-        code: user.participantCode || '',
-        deviceId: user.deviceId || '',
-        name: user.fullName,
-        email: user.email,
-        phone: user.phone,
-        boxSelected: user.boxSelected,
-        rewardWon: user.rewardWon,
-        amountWon: user.amountWon,
-        registrationComplete: user.registrationComplete,
-        bankLinked: false,
-        kycComplete: user.kycComplete,
-        withdrawalStatus: user.withdrawalStatus,
-        dateUsed: user.dateRegistered || new Date().toISOString(),
-      });
-
-      navigate("/dashboard");
+      const participant = result.user?.participant;
+      if (participant) {
+        setCurrentSession(participant);
+        navigate("/dashboard");
+      } else {
+        setError("No reward data found for this account.");
+      }
     } catch (error) {
       setError("Login failed. Please try again.");
     } finally {
