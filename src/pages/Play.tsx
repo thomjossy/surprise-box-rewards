@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import confetti from "canvas-confetti";
 import { motion } from "framer-motion";
-import { getBoxes, getCurrentSession, setCurrentSession, updateBox, addParticipant, formatCurrency } from "@/lib/gameStore";
+import { getBoxes, getCurrentSession, setCurrentSession, updateBox, addParticipant, updateParticipant, formatCurrency } from "@/lib/gameStore";
 import DonationBoxGrid from "@/components/DonationBoxGrid";
 import RewardModal from "@/components/RewardModal";
 import ClaimRewardFlow from "@/components/ClaimRewardFlow";
@@ -94,7 +94,7 @@ export default function Play() {
     setTimeout(() => setClaimFlowOpen(true), 300);
   };
 
-  const handleClaimComplete = (formData: any) => {
+  const handleClaimComplete = async (formData: any) => {
     if (session) {
       const updated = {
         ...session,
@@ -110,6 +110,22 @@ export default function Play() {
       };
       setCurrentSession(updated);
       setSession(updated);
+
+      // Persist to DB
+      try {
+        await updateParticipant(session.code, session.deviceId, {
+          name: formData.fullName,
+          email: formData.email,
+          phone: `${formData.countryCode}${formData.phone}`,
+          countryCode: formData.countryCode,
+          address: formData.address,
+          registrationComplete: true,
+          kycComplete: true,
+          withdrawalStatus: 'pending',
+        });
+      } catch (err) {
+        console.error('Failed to update participant in DB:', err);
+      }
     }
     setClaimFlowOpen(false);
     navigate("/dashboard");
