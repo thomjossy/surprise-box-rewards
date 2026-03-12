@@ -9,10 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   getCodes,
   getBoxes,
-  setBoxes,
   getParticipants,
-  getNotification,
-  setNotification,
   formatCurrency,
   addSingleCode,
   addMultipleCodes,
@@ -29,6 +26,8 @@ import {
   KeyRound, Gift, Users, Bell, Wallet, Plus, Trash2, Copy, Check, Shield,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
+import ParticipantsTab from "@/components/admin/ParticipantsTab";
+import WithdrawalsTab from "@/components/admin/WithdrawalsTab";
 import { useToast } from "@/hooks/use-toast";
 import { requireAdmin } from "@/lib/adminAuth";
 
@@ -54,14 +53,24 @@ export default function Admin() {
       setCheckingAuth(false);
 
       try {
-        const [codesData, boxesData, participantsData, notificationData] = await Promise.all([
-          getCodes(), getBoxes(), getParticipants(), getNotification(),
+        const [codesData, boxesData, participantsData] = await Promise.all([
+          getCodes(), getBoxes(), getParticipants(),
         ]);
+        // Fetch ALL notifications (not just enabled) for admin
+        const { data: notifData } = await supabase
+          .from('notifications')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
         if (cancelled) return;
         setCodesState(codesData);
         setBoxesState(boxesData);
         setParticipantsState(participantsData);
-        setNotifState(notificationData);
+        if (notifData) {
+          setNotifState({ enabled: notifData.enabled ?? false, title: notifData.title, message: notifData.message });
+        }
       } catch (error) {
         console.error("Error loading admin data:", error);
         toast({ title: "Failed to load admin data", variant: "destructive" });
@@ -148,13 +157,22 @@ export default function Admin() {
 
   const updateBoxReward = async (id: number, field: "reward" | "amount", value: string) => {
     const updates: Partial<DonationBox> = field === "amount" ? { amount: parseInt(value) || 0 } : { reward: value };
-    // Optimistic update
     setBoxesState(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
     try {
       await updateBox(id, updates);
     } catch {
       await refreshBoxes();
       toast({ title: "Failed to update box", variant: "destructive" });
+    }
+  };
+
+  const resetBox = async (id: number) => {
+    try {
+      await updateBox(id, { isOpened: false, openedBy: undefined });
+      await refreshBoxes();
+      toast({ title: `Box ${id} reset to available` });
+    } catch {
+      toast({ title: "Failed to reset box", variant: "destructive" });
     }
   };
 
@@ -183,7 +201,13 @@ export default function Admin() {
 
   const saveNotification = async () => {
     try {
-      await setNotification(notif);
+      await supabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      const { error } = await supabase.from('notifications').insert([{
+        enabled: notif.enabled,
+        title: notif.title,
+        message: notif.message,
+      }]);
+      if (error) throw error;
       toast({ title: "Notification updated" });
     } catch {
       toast({ title: "Failed to update notification", variant: "destructive" });
@@ -253,6 +277,9 @@ export default function Admin() {
                   <span className={`text-xs ${box.isOpened ? 'text-reward-gold' : 'text-muted-foreground'}`}>
                     {box.isOpened ? 'Opened' : 'Available'}
                   </span>
+                  {box.isOpened && (
+                    <Button onClick={() => resetBox(box.id)} size="sm" variant="ghost" className="text-xs">Reset</Button>
+                  )}
                   <button onClick={() => removeBox(box.id)} className="text-muted-foreground hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -263,45 +290,7 @@ export default function Admin() {
 
           {/* PARTICIPANTS TAB */}
           <TabsContent value="participants">
-            <div className="mb-4">
-              <Button onClick={refreshParticipants} size="sm" variant="outline">Refresh</Button>
-            </div>
-            {participants.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No participants yet</p>
-            ) : (
-              <div className="space-y-2">
-                {participants.map((p, i) => (
-                  <div key={i} className="glass-card rounded-lg px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                      <span className="font-semibold text-foreground">{p.name || 'Unregistered'}</span>
-                      <span className="text-muted-foreground">Code: {p.code}</span>
-                      <span className="text-muted-foreground">Box: {p.boxSelected}</span>
-                      <span className="font-display font-semibold text-primary">{formatCurrency(p.amountWon || 0)}</span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span>Device: {p.deviceId.slice(0, 12)}…</span>
-                      <span className={p.registrationComplete ? 'text-success' : ''}>
-                        Reg: {p.registrationComplete ? '✓' : '✗'}
-                      </span>
-                      <span className={p.kycComplete ? 'text-success' : ''}>
-                        KYC: {p.kycComplete ? '✓' : '✗'}
-                      </span>
-                    </div>
-                    {p.registrationComplete && (
-                      <div className="mt-2 rounded-md bg-secondary/50 p-2 text-xs text-muted-foreground">
-                        <div className="grid grid-cols-2 gap-1">
-                          <span>Email: <span className="text-foreground">{p.email || '—'}</span></span>
-                          <span>Phone: <span className="text-foreground">{p.phone || '—'}</span></span>
-                        </div>
-                        <div className="mt-1">
-                          <span>Date: <span className="text-foreground">{new Date(p.dateUsed).toLocaleDateString()}</span></span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <ParticipantsTab participants={participants} onRefresh={refreshParticipants} />
           </TabsContent>
 
           {/* NOTIFICATIONS TAB */}
@@ -319,24 +308,7 @@ export default function Admin() {
 
           {/* WITHDRAWALS TAB */}
           <TabsContent value="withdrawals">
-            {participants.filter(p => p.withdrawalStatus !== 'none').length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No withdrawal requests yet</p>
-            ) : (
-              <div className="space-y-2">
-                {participants.filter(p => p.withdrawalStatus !== 'none').map((p, i) => (
-                  <div key={i} className="glass-card flex flex-wrap items-center gap-3 rounded-lg px-4 py-3">
-                    <span className="font-semibold text-foreground">{p.name}</span>
-                    <span className="font-display font-semibold text-primary">{formatCurrency(p.amountWon || 0)}</span>
-                    <span className={`ml-auto text-xs font-medium ${
-                      p.withdrawalStatus === 'pending' ? 'text-reward-gold' :
-                      p.withdrawalStatus === 'approved' ? 'text-success' : 'text-destructive'
-                    }`}>
-                      {p.withdrawalStatus.toUpperCase()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <WithdrawalsTab participants={participants} onRefresh={refreshParticipants} />
           </TabsContent>
         </Tabs>
       </main>
