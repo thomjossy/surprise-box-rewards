@@ -277,20 +277,25 @@ export async function setCodes(codes: ParticipationCode[]): Promise<void> {
 
 // Validate participation code
 export async function validateCode(code: string): Promise<{ valid: boolean; message: string }> {
+  const normalizedCode = code.toUpperCase();
   const { data, error } = await supabase
     .from('participation_codes')
     .select('*')
-    .eq('code', code.toUpperCase())
+    .eq('code', normalizedCode)
     .single();
-  
+
   if (error || !data) return { valid: false, message: 'Invalid participation code.' };
   if (!data.is_active) return { valid: false, message: 'This code has been disabled.' };
-  
-  const deviceUsed = await hasDeviceUsedCode(code);
-  if (deviceUsed) {
-    return { valid: false, message: 'This code has already been used on this device.' };
+
+  try {
+    const deviceUsed = await hasDeviceUsedCode(normalizedCode);
+    if (deviceUsed) {
+      return { valid: false, message: 'This code has already been used on this device.' };
+    }
+  } catch {
+    return { valid: false, message: 'Unable to validate this code right now. Please try again.' };
   }
-  
+
   return { valid: true, message: 'Code accepted!' };
 }
 
