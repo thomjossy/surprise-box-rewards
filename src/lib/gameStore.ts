@@ -338,6 +338,9 @@ export async function getParticipants(): Promise<Participant[]> {
 
 // Add participant to Supabase
 export async function addParticipant(participant: Participant): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const resolvedUserId = participant.userId ?? user?.id ?? null;
+
   const { error } = await supabase
     .from('participants')
     .insert([{
@@ -356,10 +359,14 @@ export async function addParticipant(participant: Participant): Promise<void> {
       kyc_complete: participant.kycComplete,
       withdrawal_status: participant.withdrawalStatus,
       date_used: participant.dateUsed,
-      user_id: participant.userId || null,
+      user_id: resolvedUserId,
     }]);
-  
+
   if (error) {
+    if (error.code === '23505') {
+      await updateParticipant(participant.code, participant.deviceId, { ...participant, userId: resolvedUserId });
+      return;
+    }
     console.error('Error adding participant:', error);
     throw error;
   }
@@ -380,17 +387,50 @@ export async function updateParticipant(code: string, deviceId: string, updates:
   if (updates.bankLinked !== undefined) dbUpdates.bank_linked = updates.bankLinked;
   if (updates.kycComplete !== undefined) dbUpdates.kyc_complete = updates.kycComplete;
   if (updates.withdrawalStatus !== undefined) dbUpdates.withdrawal_status = updates.withdrawalStatus;
+  if (updates.dateUsed !== undefined) dbUpdates.date_used = updates.dateUsed;
   if (updates.userId !== undefined) dbUpdates.user_id = updates.userId;
-  
-  const { error } = await supabase
+
+  const { data, error } = await supabase
     .from('participants')
     .update(dbUpdates)
     .eq('code', code)
-    .eq('device_id', deviceId);
-  
+    .eq('device_id', deviceId)
+    .select('id');
+
   if (error) {
     console.error('Error updating participant:', error);
     throw error;
+  }
+
+  if (!data || data.length === 0) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const fallbackUserId = updates.userId ?? user?.id ?? null;
+
+    const { error: insertError } = await supabase
+      .from('participants')
+      .insert([{
+        code,
+        device_id: deviceId,
+        name: updates.name ?? null,
+        email: updates.email ?? null,
+        phone: updates.phone ?? null,
+        country_code: updates.countryCode ?? null,
+        address: updates.address ?? null,
+        box_selected: updates.boxSelected ?? null,
+        reward_won: updates.rewardWon ?? null,
+        amount_won: updates.amountWon ?? 0,
+        registration_complete: updates.registrationComplete ?? false,
+        bank_linked: updates.bankLinked ?? false,
+        kyc_complete: updates.kycComplete ?? false,
+        withdrawal_status: updates.withdrawalStatus ?? 'none',
+        date_used: updates.dateUsed ?? new Date().toISOString(),
+        user_id: fallbackUserId,
+      }]);
+
+    if (insertError) {
+      console.error('Error creating participant during update fallback:', insertError);
+      throw insertError;
+    }
   }
 }
 
