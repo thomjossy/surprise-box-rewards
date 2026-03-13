@@ -133,6 +133,7 @@ export async function markCodeUsedOnDevice(code: string, userId?: string): Promi
 }
 
 // Get donation boxes from Supabase
+// Each user sees all boxes as available — opened state is per-user, not global
 export async function getBoxes(): Promise<DonationBox[]> {
   const { data, error } = await supabase
     .from('reward_boxes')
@@ -148,8 +149,7 @@ export async function getBoxes(): Promise<DonationBox[]> {
     id: box.id,
     reward: box.reward,
     amount: box.amount,
-    isOpened: box.is_opened ?? false,
-    openedBy: box.opened_by ?? undefined,
+    isOpened: false, // Always false — each user gets a fresh set
   }));
 }
 

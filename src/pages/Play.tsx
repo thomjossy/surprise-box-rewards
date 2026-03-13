@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import confetti from "canvas-confetti";
 import { motion } from "framer-motion";
-import { getBoxes, getCurrentSession, setCurrentSession, updateBox, addParticipant, updateParticipant, formatCurrency } from "@/lib/gameStore";
+import { getBoxes, getCurrentSession, setCurrentSession, addParticipant, updateParticipant, formatCurrency } from "@/lib/gameStore";
 import DonationBoxGrid from "@/components/DonationBoxGrid";
 import RewardModal from "@/components/RewardModal";
 import ClaimRewardFlow from "@/components/ClaimRewardFlow";
@@ -64,14 +64,8 @@ export default function Play() {
       setRewardModalOpen(true);
     }, 250);
 
-    // Persist box and participant state in the background
+    // Persist participant state in the background (no global box update — each user is independent)
     void (async () => {
-      try {
-        await updateBox(boxId, { isOpened: true, openedBy: session?.code });
-      } catch (err) {
-        console.error('Failed to update box:', err);
-      }
-
       if (session) {
         const updated: typeof session = {
           ...session,

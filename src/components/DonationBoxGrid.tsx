@@ -14,8 +14,8 @@ export default function DonationBoxGrid({ boxes, selectedBox, onSelectBox }: Don
         <DonationBoxCard
           key={box.id}
           boxNumber={box.id}
-          isOpened={selectedBox === box.id || box.isOpened}
-          isDisabled={(selectedBox !== null && selectedBox !== box.id) || box.isOpened}
+          isOpened={selectedBox === box.id}
+          isDisabled={selectedBox !== null && selectedBox !== box.id}
           onClick={() => onSelectBox(box.id)}
           delay={i}
         />
