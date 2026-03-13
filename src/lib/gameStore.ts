@@ -94,30 +94,41 @@ export function clearCurrentSession(): void {
 // Check if device has used a code
 export async function hasDeviceUsedCode(code: string): Promise<boolean> {
   const deviceId = getDeviceId();
+  const normalizedCode = code.toUpperCase();
+
   const { data, error } = await supabase
     .from('code_usage')
     .select('id')
-    .eq('code', code.toUpperCase())
+    .eq('code', normalizedCode)
     .eq('device_id', deviceId)
-    .single();
-  
-  if (error && error.code !== 'PGRST116') {
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
     console.error('Error checking code usage:', error);
-    return false;
+    throw error;
   }
-  
+
   return !!data;
 }
 
 // Mark code as used on this device
 export async function markCodeUsedOnDevice(code: string, userId?: string): Promise<void> {
   const deviceId = getDeviceId();
+  const normalizedCode = code.toUpperCase();
+  const { data: { user } } = await supabase.auth.getUser();
+  const resolvedUserId = userId ?? user?.id ?? null;
+
   const { error } = await supabase
     .from('code_usage')
-    .insert([{ code: code.toUpperCase(), device_id: deviceId, user_id: userId || null }]);
-  
+    .insert([{ code: normalizedCode, device_id: deviceId, user_id: resolvedUserId }]);
+
   if (error) {
+    if (error.code === '23505') {
+      throw new Error('This code has already been used on this device.');
+    }
     console.error('Error marking code as used:', error);
+    throw error;
   }
 }
 
