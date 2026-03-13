@@ -256,7 +256,7 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
                   Your registration and verification have been completed successfully. To finalize your reward payment and link your bank details, please contact Live Support.
                 </p>
                 <Button
-                  onClick={() => window.open('https://wa.me/1234567890', '_blank')}
+                  onClick={() => window.open('https://wa.me/message/EQ7AKV75KDBGF1', '_blank')}
                   variant="outline"
                   className="gap-2"
                 >

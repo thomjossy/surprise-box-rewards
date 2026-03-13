@@ -7,6 +7,8 @@ import { Gift, Wallet, Box, ShieldCheck, MessageCircle, LogOut } from "lucide-re
 import AppHeader from "@/components/AppHeader";
 import ClaimRewardFlow from "@/components/ClaimRewardFlow";
 import type { Participant } from "@/lib/gameStore";
+import { Helmet } from "react-helmet-async";
+
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -47,6 +49,10 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      
+<Helmet>
+  <script src="//code.jivosite.com/widget/sBaL6Ggv6V" async></script>
+</Helmet>
       <AppHeader winnerName={session.name} balanceWon={session.amountWon} />
 
       <main className="container max-w-lg flex-1 py-8">
@@ -90,7 +96,7 @@ export default function Dashboard() {
           <Button
             variant="outline"
             className="w-full gap-2"
-            onClick={() => window.open('https://wa.me/1234567890', '_blank')}
+            onClick={() => window.open('https://wa.me/message/EQ7AKV75KDBGF1', '_blank')}
           >
             <MessageCircle className="h-4 w-4" /> Contact Support
           </Button>

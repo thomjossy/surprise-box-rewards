@@ -7,6 +7,7 @@ import DonationBoxGrid from "@/components/DonationBoxGrid";
 import RewardModal from "@/components/RewardModal";
 import ClaimRewardFlow from "@/components/ClaimRewardFlow";
 import AppHeader from "@/components/AppHeader";
+import { Helmet } from "react-helmet-async";
 
 export default function Play() {
   const navigate = useNavigate();
@@ -134,6 +135,11 @@ export default function Play() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      
+<Helmet>
+  <script src="//code.jivosite.com/widget/sBaL6Ggv6V" async></script>
+</Helmet>
+
       <AppHeader
         winnerName={session?.name}
         balanceWon={session?.amountWon}

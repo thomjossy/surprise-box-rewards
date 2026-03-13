@@ -7,6 +7,7 @@ import { Gift, ArrowRight, Sparkles, LogIn } from "lucide-react";
 import { validateCode, useCode, setCurrentSession, getDeviceId, getCurrentSession, getNotification, type NotificationConfig } from "@/lib/gameStore";
 import NotificationModal from "@/components/NotificationModal";
 import AppHeader from "@/components/AppHeader";
+import { Helmet } from "react-helmet-async";
 
 export default function Index() {
   const [code, setCode] = useState("");
@@ -79,6 +80,12 @@ export default function Index() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <AppHeader />
+
+      
+<Helmet>
+  <script src="//code.jivosite.com/widget/sBaL6Ggv6V" async></script>
+</Helmet>
+
       
       <main className="flex flex-1 items-center justify-center px-4 py-12">
         <motion.div
