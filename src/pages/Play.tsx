@@ -48,7 +48,7 @@ export default function Play() {
     })();
   }, []);
 
-  const handleSelectBox = async (boxId: number) => {
+  const handleSelectBox = (boxId: number) => {
     if (selectedBox !== null) return;
 
     const box = boxes.find(b => b.id === boxId);
@@ -57,36 +57,37 @@ export default function Play() {
     setSelectedBox(boxId);
     setCurrentReward({ reward: box.reward, amount: box.amount, boxNumber: box.id });
 
-    // Update box as opened in DB
-    try {
-      await updateBox(boxId, { isOpened: true, openedBy: session?.code });
-    } catch (err) {
-      console.error('Failed to update box:', err);
-    }
-
-    // Update local session and save participant to DB
-    if (session) {
-      const updated: typeof session = {
-        ...session,
-        boxSelected: boxId,
-        rewardWon: box.reward,
-        amountWon: box.amount,
-      };
-      setCurrentSession(updated);
-      setSession(updated);
-
-      // Save participant record to DB
-      try {
-        await addParticipant(updated);
-      } catch (err) {
-        console.error('Failed to save participant:', err);
-      }
-    }
-
+    // Open reward modal immediately after selection for consistent UX
     setTimeout(() => {
       fireConfetti();
       setRewardModalOpen(true);
-    }, 600);
+    }, 250);
+
+    // Persist box and participant state in the background
+    void (async () => {
+      try {
+        await updateBox(boxId, { isOpened: true, openedBy: session?.code });
+      } catch (err) {
+        console.error('Failed to update box:', err);
+      }
+
+      if (session) {
+        const updated: typeof session = {
+          ...session,
+          boxSelected: boxId,
+          rewardWon: box.reward,
+          amountWon: box.amount,
+        };
+        setCurrentSession(updated);
+        setSession(updated);
+
+        try {
+          await addParticipant(updated);
+        } catch (err) {
+          console.error('Failed to save participant:', err);
+        }
+      }
+    })();
   };
 
   const handleClaim = () => {
