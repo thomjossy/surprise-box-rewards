@@ -46,6 +46,7 @@ export interface RegisteredUser {
   fullName: string;
   phone: string;
   countryCode: string;
+  address?: string;
   participantCode: string;
   deviceId: string;
   boxSelected?: number;
