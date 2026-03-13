@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import confetti from "canvas-confetti";
 import { motion } from "framer-motion";
-import { getBoxes, getCurrentSession, setCurrentSession, updateBox, addParticipant, updateParticipant, formatCurrency } from "@/lib/gameStore";
+import { getBoxes, getCurrentSession, setCurrentSession, addParticipant, updateParticipant, formatCurrency } from "@/lib/gameStore";
 import DonationBoxGrid from "@/components/DonationBoxGrid";
 import RewardModal from "@/components/RewardModal";
 import ClaimRewardFlow from "@/components/ClaimRewardFlow";
