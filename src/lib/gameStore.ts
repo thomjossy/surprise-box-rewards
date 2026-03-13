@@ -518,19 +518,20 @@ export async function registerUser(user: RegisteredUser): Promise<void> {
     email: user.email,
     password: user.password,
   });
-  
+
   if (authError) {
     console.error('Error registering user:', authError);
     throw authError;
   }
-  
+
   // Update the existing participant record with user_id
   if (authData.user) {
     await updateParticipant(user.participantCode, user.deviceId, {
       name: user.fullName,
       email: user.email,
-      phone: user.phone,
+      phone: `${user.countryCode}${user.phone}`,
       countryCode: user.countryCode,
+      address: user.address,
       registrationComplete: user.registrationComplete,
       kycComplete: user.kycComplete,
       withdrawalStatus: user.withdrawalStatus,
