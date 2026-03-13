@@ -64,14 +64,8 @@ export default function Play() {
       setRewardModalOpen(true);
     }, 250);
 
-    // Persist box and participant state in the background
+    // Persist participant state in the background (no global box update — each user is independent)
     void (async () => {
-      try {
-        await updateBox(boxId, { isOpened: true, openedBy: session?.code });
-      } catch (err) {
-        console.error('Failed to update box:', err);
-      }
-
       if (session) {
         const updated: typeof session = {
           ...session,
