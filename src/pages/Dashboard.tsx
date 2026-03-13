@@ -135,6 +135,7 @@ export default function Dashboard() {
               fullName: formData.fullName,
               phone: formData.phone,
               countryCode: formData.countryCode,
+              address: formData.address,
               participantCode: session.code,
               deviceId: session.deviceId,
               boxSelected: session.boxSelected,

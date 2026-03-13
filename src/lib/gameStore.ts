@@ -46,6 +46,7 @@ export interface RegisteredUser {
   fullName: string;
   phone: string;
   countryCode: string;
+  address?: string;
   participantCode: string;
   deviceId: string;
   boxSelected?: number;
@@ -93,30 +94,41 @@ export function clearCurrentSession(): void {
 // Check if device has used a code
 export async function hasDeviceUsedCode(code: string): Promise<boolean> {
   const deviceId = getDeviceId();
+  const normalizedCode = code.toUpperCase();
+
   const { data, error } = await supabase
     .from('code_usage')
     .select('id')
-    .eq('code', code.toUpperCase())
+    .eq('code', normalizedCode)
     .eq('device_id', deviceId)
-    .single();
-  
-  if (error && error.code !== 'PGRST116') {
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
     console.error('Error checking code usage:', error);
-    return false;
+    throw error;
   }
-  
+
   return !!data;
 }
 
 // Mark code as used on this device
 export async function markCodeUsedOnDevice(code: string, userId?: string): Promise<void> {
   const deviceId = getDeviceId();
+  const normalizedCode = code.toUpperCase();
+  const { data: { user } } = await supabase.auth.getUser();
+  const resolvedUserId = userId ?? user?.id ?? null;
+
   const { error } = await supabase
     .from('code_usage')
-    .insert([{ code: code.toUpperCase(), device_id: deviceId, user_id: userId || null }]);
-  
+    .insert([{ code: normalizedCode, device_id: deviceId, user_id: resolvedUserId }]);
+
   if (error) {
+    if (error.code === '23505') {
+      throw new Error('This code has already been used on this device.');
+    }
     console.error('Error marking code as used:', error);
+    throw error;
   }
 }
 
@@ -265,20 +277,25 @@ export async function setCodes(codes: ParticipationCode[]): Promise<void> {
 
 // Validate participation code
 export async function validateCode(code: string): Promise<{ valid: boolean; message: string }> {
+  const normalizedCode = code.toUpperCase();
   const { data, error } = await supabase
     .from('participation_codes')
     .select('*')
-    .eq('code', code.toUpperCase())
+    .eq('code', normalizedCode)
     .single();
-  
+
   if (error || !data) return { valid: false, message: 'Invalid participation code.' };
   if (!data.is_active) return { valid: false, message: 'This code has been disabled.' };
-  
-  const deviceUsed = await hasDeviceUsedCode(code);
-  if (deviceUsed) {
-    return { valid: false, message: 'This code has already been used on this device.' };
+
+  try {
+    const deviceUsed = await hasDeviceUsedCode(normalizedCode);
+    if (deviceUsed) {
+      return { valid: false, message: 'This code has already been used on this device.' };
+    }
+  } catch {
+    return { valid: false, message: 'Unable to validate this code right now. Please try again.' };
   }
-  
+
   return { valid: true, message: 'Code accepted!' };
 }
 
@@ -321,6 +338,9 @@ export async function getParticipants(): Promise<Participant[]> {
 
 // Add participant to Supabase
 export async function addParticipant(participant: Participant): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const resolvedUserId = participant.userId ?? user?.id ?? null;
+
   const { error } = await supabase
     .from('participants')
     .insert([{
@@ -339,10 +359,14 @@ export async function addParticipant(participant: Participant): Promise<void> {
       kyc_complete: participant.kycComplete,
       withdrawal_status: participant.withdrawalStatus,
       date_used: participant.dateUsed,
-      user_id: participant.userId || null,
+      user_id: resolvedUserId,
     }]);
-  
+
   if (error) {
+    if (error.code === '23505') {
+      await updateParticipant(participant.code, participant.deviceId, { ...participant, userId: resolvedUserId });
+      return;
+    }
     console.error('Error adding participant:', error);
     throw error;
   }
@@ -363,17 +387,50 @@ export async function updateParticipant(code: string, deviceId: string, updates:
   if (updates.bankLinked !== undefined) dbUpdates.bank_linked = updates.bankLinked;
   if (updates.kycComplete !== undefined) dbUpdates.kyc_complete = updates.kycComplete;
   if (updates.withdrawalStatus !== undefined) dbUpdates.withdrawal_status = updates.withdrawalStatus;
+  if (updates.dateUsed !== undefined) dbUpdates.date_used = updates.dateUsed;
   if (updates.userId !== undefined) dbUpdates.user_id = updates.userId;
-  
-  const { error } = await supabase
+
+  const { data, error } = await supabase
     .from('participants')
     .update(dbUpdates)
     .eq('code', code)
-    .eq('device_id', deviceId);
-  
+    .eq('device_id', deviceId)
+    .select('id');
+
   if (error) {
     console.error('Error updating participant:', error);
     throw error;
+  }
+
+  if (!data || data.length === 0) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const fallbackUserId = updates.userId ?? user?.id ?? null;
+
+    const { error: insertError } = await supabase
+      .from('participants')
+      .insert([{
+        code,
+        device_id: deviceId,
+        name: updates.name ?? null,
+        email: updates.email ?? null,
+        phone: updates.phone ?? null,
+        country_code: updates.countryCode ?? null,
+        address: updates.address ?? null,
+        box_selected: updates.boxSelected ?? null,
+        reward_won: updates.rewardWon ?? null,
+        amount_won: updates.amountWon ?? 0,
+        registration_complete: updates.registrationComplete ?? false,
+        bank_linked: updates.bankLinked ?? false,
+        kyc_complete: updates.kycComplete ?? false,
+        withdrawal_status: updates.withdrawalStatus ?? 'none',
+        date_used: updates.dateUsed ?? new Date().toISOString(),
+        user_id: fallbackUserId,
+      }]);
+
+    if (insertError) {
+      console.error('Error creating participant during update fallback:', insertError);
+      throw insertError;
+    }
   }
 }
 
@@ -461,19 +518,20 @@ export async function registerUser(user: RegisteredUser): Promise<void> {
     email: user.email,
     password: user.password,
   });
-  
+
   if (authError) {
     console.error('Error registering user:', authError);
     throw authError;
   }
-  
+
   // Update the existing participant record with user_id
   if (authData.user) {
     await updateParticipant(user.participantCode, user.deviceId, {
       name: user.fullName,
       email: user.email,
-      phone: user.phone,
+      phone: `${user.countryCode}${user.phone}`,
       countryCode: user.countryCode,
+      address: user.address,
       registrationComplete: user.registrationComplete,
       kycComplete: user.kycComplete,
       withdrawalStatus: user.withdrawalStatus,

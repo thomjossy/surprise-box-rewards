@@ -46,17 +46,19 @@ export default function Index() {
     }
 
     setLoading(true);
+    const normalizedCode = code.trim().toUpperCase();
+
     try {
-      const result = await validateCode(code.trim());
+      const result = await validateCode(normalizedCode);
       if (!result.valid) {
         setError(result.message);
         setLoading(false);
         return;
       }
 
-      await useCode(code.trim());
+      await useCode(normalizedCode);
       setCurrentSession({
-        code: code.trim().toUpperCase(),
+        code: normalizedCode,
         deviceId: getDeviceId(),
         registrationComplete: false,
         bankLinked: false,
@@ -67,7 +69,8 @@ export default function Index() {
 
       navigate("/play");
     } catch (error) {
-      setError("An error occurred. Please try again.");
+      const message = error instanceof Error ? error.message : "An error occurred. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }
