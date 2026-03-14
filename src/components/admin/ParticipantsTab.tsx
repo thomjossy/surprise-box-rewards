@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, RefreshCw, ChevronDown, ChevronUp, FileText, Image } from "lucide-react";
 import { formatCurrency, type Participant } from "@/lib/gameStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
