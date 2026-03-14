@@ -294,7 +294,8 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
           )}
-          <Button onClick={next} disabled={!canProceed()} className="ml-auto gap-1">
+          <Button onClick={next} disabled={!canProceed() || submitting} className="ml-auto gap-1">
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {step === 2 ? 'Finish' : 'Continue'} <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
