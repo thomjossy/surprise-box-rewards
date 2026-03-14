@@ -6,7 +6,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, ShieldCheck, MessageCircle, ArrowRight, ArrowLeft, Upload, FileText, Image, X } from "lucide-react";
+import { User, ShieldCheck, MessageCircle, ArrowRight, ArrowLeft, Upload, FileText, Image, X, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const countryCodes = [
   { code: "+1", country: "US", flag: "🇺🇸" },
