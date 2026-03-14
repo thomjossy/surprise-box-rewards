@@ -19,12 +19,14 @@ export default function Play() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(getCurrentSession());
 
+  // Only check session on mount — not when session updates (to avoid racing the modal)
   useEffect(() => {
-    if (!session) {
+    const s = getCurrentSession();
+    if (!s) {
       navigate("/");
       return;
     }
-    if (session.boxSelected) {
+    if (s.boxSelected) {
       navigate("/dashboard");
       return;
     }
@@ -35,7 +37,8 @@ export default function Play() {
       setLoading(false);
     };
     loadBoxes();
-  }, [navigate, session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate]);
 
   const fireConfetti = useCallback(() => {
     const duration = 2000;
