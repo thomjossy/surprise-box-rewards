@@ -391,6 +391,8 @@ export async function updateParticipant(code: string, deviceId: string, updates:
   if (updates.withdrawalStatus !== undefined) dbUpdates.withdrawal_status = updates.withdrawalStatus;
   if (updates.dateUsed !== undefined) dbUpdates.date_used = updates.dateUsed;
   if (updates.userId !== undefined) dbUpdates.user_id = updates.userId;
+  if (updates.idFileUrl !== undefined) dbUpdates.id_file_url = updates.idFileUrl;
+  if (updates.selfieFileUrl !== undefined) dbUpdates.selfie_file_url = updates.selfieFileUrl;
 
   const { data, error } = await supabase
     .from('participants')
