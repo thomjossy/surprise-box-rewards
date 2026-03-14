@@ -110,7 +110,6 @@ export default function Play() {
       setCurrentSession(updated);
       setSession(updated);
 
-      // Persist to DB
       try {
         await updateParticipant(session.code, session.deviceId, {
           name: formData.fullName,
@@ -121,6 +120,8 @@ export default function Play() {
           registrationComplete: true,
           kycComplete: true,
           withdrawalStatus: 'pending',
+          idFileUrl: formData.idFileUrl,
+          selfieFileUrl: formData.selfieFileUrl,
         });
       } catch (err) {
         console.error('Failed to update participant in DB:', err);
