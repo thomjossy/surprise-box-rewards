@@ -108,10 +108,29 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
     }
   };
 
-  const next = () => {
-    if (step < 2) setStep(step + 1);
-    else {
-      onComplete({ ...formData, idFile, selfieFile });
+  const [submitting, setSubmitting] = useState(false);
+
+  const uploadFile = async (file: UploadedFile, prefix: string): Promise<string | null> => {
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const path = `${prefix}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const response = await fetch(file.dataUrl);
+      const blob = await response.blob();
+      const { error } = await supabase.storage.from('kyc-files').upload(path, blob, { contentType: file.type });
+      if (error) { console.error('Upload error:', error); return null; }
+      return path;
+    } catch (err) { console.error('Upload error:', err); return null; }
+  };
+
+  const next = async () => {
+    if (step < 2) { setStep(step + 1); return; }
+    setSubmitting(true);
+    try {
+      const idPath = idFile ? await uploadFile(idFile, 'id-docs') : null;
+      const selfiePath = selfieFile ? await uploadFile(selfieFile, 'selfies') : null;
+      onComplete({ ...formData, idFile, selfieFile, idFileUrl: idPath, selfieFileUrl: selfiePath });
+    } finally {
+      setSubmitting(false);
     }
   };
 
