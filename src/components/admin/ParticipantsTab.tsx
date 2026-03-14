@@ -11,6 +11,20 @@ interface ParticipantsTabProps {
   onRefresh: () => Promise<void>;
 }
 
+function KycFileLink({ path, label }: { path: string; label: string }) {
+  const handleClick = async () => {
+    const { data } = await supabase.storage.from('kyc-files').createSignedUrl(path, 300);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  };
+  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(path);
+  return (
+    <button onClick={handleClick} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-primary hover:bg-primary/5">
+      {isImage ? <Image className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+      {label}
+    </button>
+  );
+}
+
 export default function ParticipantsTab({ participants, onRefresh }: ParticipantsTabProps) {
   const { toast } = useToast();
   const [expanded, setExpanded] = useState<string | null>(null);
