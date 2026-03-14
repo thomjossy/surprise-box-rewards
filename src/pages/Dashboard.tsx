@@ -152,6 +152,11 @@ export default function Dashboard() {
               withdrawalStatus: 'pending',
               dateRegistered: new Date().toISOString(),
             });
+            // Also save KYC file URLs
+            await updateParticipant(session.code, session.deviceId, {
+              idFileUrl: formData.idFileUrl,
+              selfieFileUrl: formData.selfieFileUrl,
+            });
           } catch (err) {
             console.error('Registration error:', err);
           }
