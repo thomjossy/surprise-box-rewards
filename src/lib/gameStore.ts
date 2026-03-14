@@ -26,6 +26,8 @@ export interface Participant {
   withdrawalStatus: 'pending' | 'approved' | 'rejected' | 'none';
   dateUsed: string;
   userId?: string;
+  idFileUrl?: string;
+  selfieFileUrl?: string;
 }
 
 export interface ParticipationCode {
