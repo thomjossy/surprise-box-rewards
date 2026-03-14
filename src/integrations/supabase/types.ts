@@ -79,11 +79,14 @@ export type Database = {
           device_id: string
           email: string | null
           id: string
+          id_file_url: string | null
           kyc_complete: boolean | null
           name: string | null
+          password_hash: string | null
           phone: string | null
           registration_complete: boolean | null
           reward_won: string | null
+          selfie_file_url: string | null
           updated_at: string | null
           user_id: string | null
           withdrawal_status: string | null
@@ -101,11 +104,14 @@ export type Database = {
           device_id: string
           email?: string | null
           id?: string
+          id_file_url?: string | null
           kyc_complete?: boolean | null
           name?: string | null
+          password_hash?: string | null
           phone?: string | null
           registration_complete?: boolean | null
           reward_won?: string | null
+          selfie_file_url?: string | null
           updated_at?: string | null
           user_id?: string | null
           withdrawal_status?: string | null
@@ -123,11 +129,14 @@ export type Database = {
           device_id?: string
           email?: string | null
           id?: string
+          id_file_url?: string | null
           kyc_complete?: boolean | null
           name?: string | null
+          password_hash?: string | null
           phone?: string | null
           registration_complete?: boolean | null
           reward_won?: string | null
+          selfie_file_url?: string | null
           updated_at?: string | null
           user_id?: string | null
           withdrawal_status?: string | null
