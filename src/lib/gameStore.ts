@@ -335,6 +335,8 @@ export async function getParticipants(): Promise<Participant[]> {
     withdrawalStatus: (p.withdrawal_status as any) ?? 'none',
     dateUsed: p.date_used ?? p.created_at ?? '',
     userId: p.user_id ?? undefined,
+    idFileUrl: (p as any).id_file_url ?? undefined,
+    selfieFileUrl: (p as any).selfie_file_url ?? undefined,
   }));
 }
 
