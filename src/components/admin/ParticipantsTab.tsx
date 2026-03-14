@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, RefreshCw, ChevronDown, ChevronUp, FileText, Image } from "lucide-react";
 import { formatCurrency, type Participant } from "@/lib/gameStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,20 @@ import { useToast } from "@/hooks/use-toast";
 interface ParticipantsTabProps {
   participants: Participant[];
   onRefresh: () => Promise<void>;
+}
+
+function KycFileLink({ path, label }: { path: string; label: string }) {
+  const handleClick = async () => {
+    const { data } = await supabase.storage.from('kyc-files').createSignedUrl(path, 300);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  };
+  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(path);
+  return (
+    <button onClick={handleClick} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-primary hover:bg-primary/5">
+      {isImage ? <Image className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+      {label}
+    </button>
+  );
 }
 
 export default function ParticipantsTab({ participants, onRefresh }: ParticipantsTabProps) {
@@ -98,6 +112,17 @@ export default function ParticipantsTab({ participants, onRefresh }: Participant
                       <span className="text-muted-foreground">Date: <span className="text-foreground">{new Date(p.dateUsed).toLocaleString()}</span></span>
                       <span className="text-muted-foreground">User ID: <span className="text-foreground">{p.userId || '—'}</span></span>
                     </div>
+
+                    {(p.idFileUrl || p.selfieFileUrl) && (
+                      <div className="flex flex-wrap gap-2">
+                        {p.idFileUrl && (
+                          <KycFileLink path={p.idFileUrl} label="Government ID" />
+                        )}
+                        {p.selfieFileUrl && (
+                          <KycFileLink path={p.selfieFileUrl} label="Selfie" />
+                        )}
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">Withdrawal:</span>

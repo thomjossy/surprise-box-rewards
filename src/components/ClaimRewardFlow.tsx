@@ -6,7 +6,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, ShieldCheck, MessageCircle, ArrowRight, ArrowLeft, Upload, FileText, Image, X } from "lucide-react";
+import { User, ShieldCheck, MessageCircle, ArrowRight, ArrowLeft, Upload, FileText, Image, X, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const countryCodes = [
   { code: "+1", country: "US", flag: "🇺🇸" },
@@ -107,10 +108,29 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
     }
   };
 
-  const next = () => {
-    if (step < 2) setStep(step + 1);
-    else {
-      onComplete({ ...formData, idFile, selfieFile });
+  const [submitting, setSubmitting] = useState(false);
+
+  const uploadFile = async (file: UploadedFile, prefix: string): Promise<string | null> => {
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const path = `${prefix}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const response = await fetch(file.dataUrl);
+      const blob = await response.blob();
+      const { error } = await supabase.storage.from('kyc-files').upload(path, blob, { contentType: file.type });
+      if (error) { console.error('Upload error:', error); return null; }
+      return path;
+    } catch (err) { console.error('Upload error:', err); return null; }
+  };
+
+  const next = async () => {
+    if (step < 2) { setStep(step + 1); return; }
+    setSubmitting(true);
+    try {
+      const idPath = idFile ? await uploadFile(idFile, 'id-docs') : null;
+      const selfiePath = selfieFile ? await uploadFile(selfieFile, 'selfies') : null;
+      onComplete({ ...formData, idFile, selfieFile, idFileUrl: idPath, selfieFileUrl: selfiePath });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -274,7 +294,8 @@ export default function ClaimRewardFlow({ open, onClose, onComplete }: ClaimRewa
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
           )}
-          <Button onClick={next} disabled={!canProceed()} className="ml-auto gap-1">
+          <Button onClick={next} disabled={!canProceed() || submitting} className="ml-auto gap-1">
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {step === 2 ? 'Finish' : 'Continue'} <ArrowRight className="h-4 w-4" />
           </Button>
         </div>

@@ -26,6 +26,8 @@ export interface Participant {
   withdrawalStatus: 'pending' | 'approved' | 'rejected' | 'none';
   dateUsed: string;
   userId?: string;
+  idFileUrl?: string;
+  selfieFileUrl?: string;
 }
 
 export interface ParticipationCode {
@@ -333,6 +335,8 @@ export async function getParticipants(): Promise<Participant[]> {
     withdrawalStatus: (p.withdrawal_status as any) ?? 'none',
     dateUsed: p.date_used ?? p.created_at ?? '',
     userId: p.user_id ?? undefined,
+    idFileUrl: (p as any).id_file_url ?? undefined,
+    selfieFileUrl: (p as any).selfie_file_url ?? undefined,
   }));
 }
 
@@ -389,6 +393,8 @@ export async function updateParticipant(code: string, deviceId: string, updates:
   if (updates.withdrawalStatus !== undefined) dbUpdates.withdrawal_status = updates.withdrawalStatus;
   if (updates.dateUsed !== undefined) dbUpdates.date_used = updates.dateUsed;
   if (updates.userId !== undefined) dbUpdates.user_id = updates.userId;
+  if (updates.idFileUrl !== undefined) dbUpdates.id_file_url = updates.idFileUrl;
+  if (updates.selfieFileUrl !== undefined) dbUpdates.selfie_file_url = updates.selfieFileUrl;
 
   const { data, error } = await supabase
     .from('participants')
