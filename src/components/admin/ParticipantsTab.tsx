@@ -99,6 +99,17 @@ export default function ParticipantsTab({ participants, onRefresh }: Participant
                       <span className="text-muted-foreground">User ID: <span className="text-foreground">{p.userId || '—'}</span></span>
                     </div>
 
+                    {(p.idFileUrl || p.selfieFileUrl) && (
+                      <div className="flex flex-wrap gap-2">
+                        {p.idFileUrl && (
+                          <KycFileLink path={p.idFileUrl} label="Government ID" />
+                        )}
+                        {p.selfieFileUrl && (
+                          <KycFileLink path={p.selfieFileUrl} label="Selfie" />
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">Withdrawal:</span>
                       <Select value={p.withdrawalStatus} onValueChange={(v) => updateWithdrawalStatus(p, v)}>
